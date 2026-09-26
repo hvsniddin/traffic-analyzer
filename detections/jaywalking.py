@@ -6,9 +6,16 @@ from ultralytics import YOLO
 import argparse
 import json
 
-from classes import BICYCLE
-from utils import close_finished_events, start_active_events
-from scene import SceneGeometry
+try:
+    from classes import PERSON
+    from utils import close_finished_events, start_active_events
+    from scene import SceneGeometry
+    from alignment import align_capture
+except ImportError:
+    from detections.classes import PERSON
+    from detections.utils import close_finished_events, start_active_events
+    from detections.scene import SceneGeometry
+    from detections.alignment import align_capture
 
 
 def annotate_frame(frame, person_detections, jaywalker_mask, safe_mask, annotators: dict, scene, annotate_only_jaywalkers: bool):
@@ -72,13 +79,26 @@ def detect_jaywalking_events(
     annotate_only_jaywalkers: bool = True
 ) -> list[list]:
     
-    scene = SceneGeometry("scene.json", frame_width=3840, frame_height=2160)
-    model = YOLO(model_path)
     cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        raise RuntimeError(f"Unable to open video: {video_path}")
     
-    fps = cap.get(cv2.CAP_PROP_FPS)
+    fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
     w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    alignment = align_capture(cap, fps)
+    if not alignment.valid:
+        cap.release()
+        print(f"Suppressing jaywalking for {video_path}: {alignment.reason}")
+        return []
+    scene = SceneGeometry("scene.json", frame_width=alignment.reference_size[0], frame_height=alignment.reference_size[1])
+    annotation_scene = (
+        SceneGeometry("scene.json", frame_width=alignment.reference_size[0],
+                      frame_height=alignment.reference_size[1],
+                      point_transform=np.linalg.inv(alignment.video_to_reference))
+        if save_video else None
+    )
+    model = YOLO(model_path)
 
     # Setup Video Writer & Annotators (Only if saving video)
     out = None
@@ -91,7 +111,7 @@ def detect_jaywalking_events(
             "lbl_red": sv.LabelAnnotator(color=sv.Color.RED, text_scale=1.2, text_thickness=2),
             "box_grn": sv.BoxAnnotator(color=sv.Color.GREEN, thickness=2),
             "lbl_grn": sv.LabelAnnotator(color=sv.Color.GREEN, text_scale=0.8, text_thickness=1),
-            "road_zone": sv.PolygonZoneAnnotator(zone=scene.road_zone, color=sv.Color.WHITE, thickness=2) if scene.road_zone else None
+            "road_zone": sv.PolygonZoneAnnotator(zone=annotation_scene.road_zone, color=sv.Color.WHITE, thickness=2) if annotation_scene.road_zone else None
         }
 
     active_jaywalkers = {}
@@ -119,7 +139,7 @@ def detect_jaywalking_events(
         if len(person_detections) > 0 and person_detections.tracker_id is not None:
             
             # 2. Evaluate Spatial Logic
-            jaywalker_mask, safe_mask = evaluate_jaywalking_spatial(person_detections, scene)
+            jaywalker_mask, safe_mask = evaluate_jaywalking_spatial(alignment.detections(person_detections), scene)
             
             # Extract IDs of current jaywalkers
             jaywalkers = person_detections[jaywalker_mask]
@@ -130,7 +150,7 @@ def detect_jaywalking_events(
             if save_video:
                 frame = annotate_frame(
                     frame, person_detections, jaywalker_mask, safe_mask, 
-                    annotators, scene, annotate_only_jaywalkers
+                    annotators, annotation_scene, annotate_only_jaywalkers
                 )
 
         # 4. State Management: Open new events and close finished ones

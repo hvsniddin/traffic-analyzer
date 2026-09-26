@@ -9,10 +9,12 @@ from ultralytics import YOLO
 try:
     from classes import BUS, CAR, MOTORCYCLE, TRUCK
     from scene import SceneGeometry
+    from alignment import align_capture
     from utils import close_finished_events, start_active_events
 except ImportError:
     from detections.classes import BUS, CAR, MOTORCYCLE, TRUCK
     from detections.scene import SceneGeometry
+    from detections.alignment import align_capture
     from detections.utils import close_finished_events, start_active_events
 
 
@@ -25,7 +27,19 @@ def _line_endpoints(line):
     end = getattr(vector, "end", None)
     if start is None or end is None:
         return None
-    return np.asarray([float(start.x), float(start.y)]), np.asarray([float(end.x), float(end.y)])
+
+    def point_xy(point):
+        if hasattr(point, "x") and hasattr(point, "y"):
+            return np.asarray([float(point.x), float(point.y)])
+        if len(point) >= 2:
+            return np.asarray([float(point[0]), float(point[1])])
+        return None
+
+    start_xy = point_xy(start)
+    end_xy = point_xy(end)
+    if start_xy is None or end_xy is None:
+        return None
+    return start_xy, end_xy
 
 
 def _box_corners(boxes):
@@ -108,19 +122,18 @@ def evaluate_solid_line_crossing_spatial(detections, scene, crossing_states):
                 line_start, line_end = endpoints
                 if not _segments_crossed(old_corners[2:], current_corners[2:], line_start, line_end):
                     continue
-                from_lane, to_lane = getattr(scene, "solid_line_lanes", {}).get(line_name, (None, None))
                 source_lane = next(
                     (name for name, lane in getattr(scene, "lanes", {}).items() if _inside_lane(old_corners, lane)),
-                    from_lane,
+                    None,
                 )
-                active[key] = {"source_lane": source_lane, "target_lane": to_lane}
+                active[key] = {"source_lane": source_lane}
                 break
 
         previous[key] = current_corners
         state = active.get(key)
         if state is None:
             continue
-        target = _target_lane(current_corners, scene, state["source_lane"], state["target_lane"])
+        target = _target_lane(current_corners, scene, state["source_lane"])
         if target is not None:
             active.pop(key)
             continue
@@ -161,8 +174,19 @@ def detect_solid_line_events(
     fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    scene = SceneGeometry("scene.json", frame_width=width, frame_height=height)
+    alignment = align_capture(cap, fps)
+    if not alignment.valid:
+        cap.release()
+        print(f"Suppressing solid_line_crossing for {video_path}: {alignment.reason}")
+        return []
+    scene = SceneGeometry("scene.json", frame_width=alignment.reference_size[0], frame_height=alignment.reference_size[1])
     model = YOLO(model_path)
+    annotation_scene = (
+        SceneGeometry("scene.json", frame_width=alignment.reference_size[0],
+                      frame_height=alignment.reference_size[1],
+                      point_transform=np.linalg.inv(alignment.video_to_reference))
+        if save_video else None
+    )
     out = None
     annotators = {}
     if save_video:
@@ -189,13 +213,13 @@ def detect_solid_line_events(
             last_t_sec = t_sec
             result = model.track(frame, device=device, tracker="bytetrack.yaml", persist=True, verbose=False)[0]
             detections = sv.Detections.from_ultralytics(result)
-            mask = evaluate_solid_line_crossing_spatial(detections, scene, state)
+            mask = evaluate_solid_line_crossing_spatial(alignment.detections(detections), scene, state)
             ids = getattr(detections, "tracker_id", None)
             current_ids = set(np.asarray(ids)[mask]) if ids is not None else set()
             start_active_events(active_events, current_ids, t_sec)
             events.extend(close_finished_events(active_events, current_ids, t_sec, "solid_line_crossing", min_duration))
             if save_video and out is not None:
-                out.write(annotate_frame(frame, detections, mask, scene, annotators))
+                out.write(annotate_frame(frame, detections, mask, annotation_scene, annotators))
             frame_idx += 1
     finally:
         events.extend(close_finished_events(active_events, set(), last_t_sec + 1.0 / fps, "solid_line_crossing", min_duration))

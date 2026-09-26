@@ -1,5 +1,19 @@
 # WIUT Hackathon 2026 — Computer Vision track: starter kit
 
+## Scene alignment for spatial rules
+
+`scene.json` stores polygons and lines in normalized coordinates relative to
+its `source` video and `reference_time_sec`. Normalization handles resizing;
+the spatial detectors also align each video's first clear frame to that exact
+reference frame. They use SIFT matches, a RANSAC homography, and held-out
+feature landmarks to check the fit before mapping tracked boxes into reference
+pixels. Saved annotation videos project scene shapes back into video pixels.
+
+Keep the reference video available at the path in `scene.json` (relative to the
+scene file). If the reference is unavailable or landmark validation fails, the
+scene-dependent detector reports the reason and returns no events for that
+video. A changed camera view needs a new reference scene or a reliable match.
+
 Traffic events from a fixed road camera: **detect** them as time segments
 (`[start_sec, end_sec, label]`) and, as a bonus, **anticipate** accidents with a
 causal risk score. Three files; read the task description for the rules.

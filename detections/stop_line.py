@@ -9,10 +9,12 @@ from ultralytics import YOLO
 try:
     from classes import BUS, CAR, GREENLIGHT, MOTORCYCLE, REDLIGHT, TRUCK
     from scene import SceneGeometry
+    from alignment import align_capture
     from utils import close_finished_events, start_active_events
 except ImportError:
     from detections.classes import BUS, CAR, GREENLIGHT, MOTORCYCLE, REDLIGHT, TRUCK
     from detections.scene import SceneGeometry
+    from detections.alignment import align_capture
     from detections.utils import close_finished_events, start_active_events
 
 
@@ -162,9 +164,20 @@ def detect_stop_line_events(
     fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    scene = SceneGeometry("scene.json", frame_width=width, frame_height=height)
+    alignment = align_capture(cap, fps)
+    if not alignment.valid:
+        cap.release()
+        print(f"Suppressing stop_line for {video_path}: {alignment.reason}")
+        return []
+    scene = SceneGeometry("scene.json", frame_width=alignment.reference_size[0], frame_height=alignment.reference_size[1])
     model = YOLO(model_path)
 
+    annotation_scene = (
+        SceneGeometry("scene.json", frame_width=alignment.reference_size[0],
+                      frame_height=alignment.reference_size[1],
+                      point_transform=np.linalg.inv(alignment.video_to_reference))
+        if save_video else None
+    )
     out = None
     annotators = {}
     if save_video:
@@ -197,7 +210,7 @@ def detect_stop_line_events(
             )[0]
             detections = sv.Detections.from_ultralytics(results)
             event_mask, _ = evaluate_stop_line_spatial(
-                detections, scene, state_history, t_sec=t_sec
+                alignment.detections(detections), scene, state_history, t_sec=t_sec
             )
 
             current_ids = set()
@@ -210,7 +223,7 @@ def detect_stop_line_events(
             ))
 
             if save_video and out is not None:
-                out.write(annotate_frame(frame, detections, event_mask, annotators, scene))
+                out.write(annotate_frame(frame, detections, event_mask, annotators, annotation_scene))
             frame_idx += 1
     finally:
         all_events.extend(close_finished_events(

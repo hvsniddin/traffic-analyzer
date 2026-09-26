@@ -9,9 +9,11 @@ from ultralytics import YOLO
 try:
     from classes import BUS, CAR, MOTORCYCLE, PERSON, TRUCK
     from scene import SceneGeometry
+    from alignment import align_capture
 except ImportError:
     from detections.classes import BUS, CAR, MOTORCYCLE, PERSON, TRUCK
     from detections.scene import SceneGeometry
+    from detections.alignment import align_capture
 
 
 VEHICLE_CLASSES = {CAR, BUS, TRUCK, MOTORCYCLE}
@@ -134,9 +136,20 @@ def detect_failure_to_yield_events(
     fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    scene = SceneGeometry("scene.json", frame_width=width, frame_height=height)
+    alignment = align_capture(cap, fps)
+    if not alignment.valid:
+        cap.release()
+        print(f"Suppressing failure_to_yield for {video_path}: {alignment.reason}")
+        return []
+    scene = SceneGeometry("scene.json", frame_width=alignment.reference_size[0], frame_height=alignment.reference_size[1])
     model = YOLO(model_path)
 
+    annotation_scene = (
+        SceneGeometry("scene.json", frame_width=alignment.reference_size[0],
+                      frame_height=alignment.reference_size[1],
+                      point_transform=np.linalg.inv(alignment.video_to_reference))
+        if save_video else None
+    )
     out = None
     annotators = {}
     if save_video:
@@ -149,7 +162,7 @@ def detect_failure_to_yield_events(
         annotators = {
             "crosswalk": [
                 sv.PolygonZoneAnnotator(zone=crosswalk, color=sv.Color.YELLOW, thickness=2)
-                for crosswalk in scene.crosswalks.values()
+                for crosswalk in annotation_scene.crosswalks.values()
             ],
             "box": sv.BoxAnnotator(color=sv.Color.RED, thickness=3),
             "label": sv.LabelAnnotator(color=sv.Color.RED, text_scale=0.8, text_thickness=2),
@@ -172,16 +185,17 @@ def detect_failure_to_yield_events(
                 frame, device=device, tracker="bytetrack.yaml", persist=True, verbose=False
             )[0]
             detections = sv.Detections.from_ultralytics(results)
+            aligned = alignment.detections(detections)
             event_mask = evaluate_failure_to_yield_spatial(
-                detections, scene, crossing_states, t_sec
+                aligned, scene, crossing_states, t_sec
             )
             class_ids = np.asarray(detections.class_id)
             vehicle_mask = np.isin(class_ids, list(VEHICLE_CLASSES))
-            current_vehicle_ids = set(_tracker_ids(detections)[vehicle_mask & _in_any_crosswalk(detections, scene)])
+            current_vehicle_ids = set(_tracker_ids(detections)[vehicle_mask & _in_any_crosswalk(aligned, scene)])
             events.extend(_close_finished_crossings(crossing_states, current_vehicle_ids, t_sec))
 
             if save_video and out is not None:
-                out.write(annotate_frame(frame, detections, event_mask, scene, annotators))
+                out.write(annotate_frame(frame, detections, event_mask, annotation_scene, annotators))
             frame_idx += 1
     finally:
         events.extend(_close_finished_crossings(crossing_states, set(), last_t_sec + 1.0 / fps))
