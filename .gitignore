@@ -1,0 +1,12 @@
+.idea
+.vscode
+.junie
+.DS_Store
+.label-studio
+.venv
+data/*
+dataset/*
+output/*
+weights/*
+__pycache__/
+*.pyc
