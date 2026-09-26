@@ -10,12 +10,10 @@ try:
     from classes import PERSON
     from utils import close_finished_events, start_active_events
     from scene import SceneGeometry
-    from alignment import align_capture
 except ImportError:
     from detections.classes import PERSON
     from detections.utils import close_finished_events, start_active_events
     from detections.scene import SceneGeometry
-    from detections.alignment import align_capture
 
 
 def annotate_frame(frame, person_detections, jaywalker_mask, safe_mask, annotators: dict, scene, annotate_only_jaywalkers: bool):
@@ -86,18 +84,9 @@ def detect_jaywalking_events(
     fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
     w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    alignment = align_capture(cap, fps)
-    if not alignment.valid:
-        cap.release()
-        print(f"Suppressing jaywalking for {video_path}: {alignment.reason}")
-        return []
-    scene = SceneGeometry("scene.json", frame_width=alignment.reference_size[0], frame_height=alignment.reference_size[1])
-    annotation_scene = (
-        SceneGeometry("scene.json", frame_width=alignment.reference_size[0],
-                      frame_height=alignment.reference_size[1],
-                      point_transform=np.linalg.inv(alignment.video_to_reference))
-        if save_video else None
-    )
+    scene = SceneGeometry("scene.json", frame_width=w, frame_height=h,
+                          video_path=video_path)
+    annotation_scene = scene if save_video else None
     model = YOLO(model_path)
 
     # Setup Video Writer & Annotators (Only if saving video)
@@ -139,7 +128,7 @@ def detect_jaywalking_events(
         if len(person_detections) > 0 and person_detections.tracker_id is not None:
             
             # 2. Evaluate Spatial Logic
-            jaywalker_mask, safe_mask = evaluate_jaywalking_spatial(alignment.detections(person_detections), scene)
+            jaywalker_mask, safe_mask = evaluate_jaywalking_spatial(person_detections, scene)
             
             # Extract IDs of current jaywalkers
             jaywalkers = person_detections[jaywalker_mask]
@@ -185,6 +174,8 @@ def main():
     
     # Required positional argument
     parser.add_argument("video_path", type=str, help="Path to the input .mp4 video file")
+    parser.add_argument("--model", default="weights/best.pt")
+    parser.add_argument("--device", default="cpu")
     
     # Optional flags
     parser.add_argument("--save_video", action="store_true", help="Flag to generate and save an annotated video")
@@ -201,6 +192,8 @@ def main():
     # Execute the core function
     events = detect_jaywalking_events(
         video_path=args.video_path,
+        model_path=args.model,
+        device=args.device,
         save_video=args.save_video,
         output_path=args.output,
         annotate_only_jaywalkers=annotate_only

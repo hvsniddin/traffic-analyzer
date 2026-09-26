@@ -1,17 +1,38 @@
 import json
+import os
+from pathlib import Path
+
 import cv2
 import numpy as np
 import supervision as sv
 
+try:
+    from .alignment import estimate_video_alignment
+except ImportError:
+    from alignment import estimate_video_alignment
+
 class SceneGeometry:
     def __init__(self, json_path: str, frame_width: int = 3840, frame_height: int = 2160,
-                 point_transform: np.ndarray | None = None):
+                 video_path: str | None = None):
         self.frame_width = frame_width
         self.frame_height = frame_height
-        self.point_transform = point_transform
 
         with open(json_path, "r") as f:
             self.raw_config = json.load(f)
+
+        self.alignment_matrix = None
+        self.alignment_size = None
+        self.alignment_status = {"status": "not_requested"}
+        if os.environ.get("WIUT_DISABLE_SCENE_ALIGNMENT") == "1":
+            self.alignment_status = {"status": "disabled"}
+        elif video_path is not None:
+            reference_path = Path(json_path).resolve().with_name("scene_reference.jpg")
+            self.alignment_matrix, self.alignment_status = estimate_video_alignment(
+                video_path, reference_path
+            )
+            if self.alignment_matrix is not None:
+                reference = cv2.imread(str(reference_path))
+                self.alignment_size = (reference.shape[1], reference.shape[0])
 
         self.road_zone = None
         self.lanes = {}           # name -> sv.PolygonZone
@@ -19,19 +40,23 @@ class SceneGeometry:
         self.crosswalks = {}     # name -> sv.PolygonZone
         self.stop_lines = {}     # name -> sv.LineZone
         self.solid_lines = {}    # name -> sv.LineZone
+        self.intersections = {}  # name -> sv.PolygonZone
         self.islands = {}        # name -> sv.PolygonZone
         self.waiting_zones = {}   # name -> sv.PolygonZone
-        self.intersections = {}  # name -> sv.PolygonZone
 
         self._build_geometry()
+        self._build_extra_geometry()
 
     def _denormalize(self, points: list[list[float]]) -> np.ndarray:
         """Converts [x_norm, y_norm] to [x_pixel, y_pixel] integer array."""
         pts = np.array(points, dtype=np.float32)
-        pts[:, 0] *= self.frame_width
-        pts[:, 1] *= self.frame_height
-        if self.point_transform is not None:
-            pts = cv2.perspectiveTransform(pts.reshape(-1, 1, 2), self.point_transform).reshape(-1, 2)
+        if self.alignment_matrix is not None:
+            reference_width, reference_height = self.alignment_size
+            pts *= [reference_width, reference_height]
+            pts = cv2.perspectiveTransform(pts[None], self.alignment_matrix)[0]
+            pts *= [self.frame_width / reference_width, self.frame_height / reference_height]
+        else:
+            pts *= [self.frame_width, self.frame_height]
         return np.rint(pts).astype(np.int32)
 
     def _build_geometry(self):
@@ -66,24 +91,25 @@ class SceneGeometry:
             p2 = sv.Point(x=sl_pts[1][0], y=sl_pts[1][1])
             self.stop_lines[sl["name"]] = sv.LineZone(start=p1, end=p2)
 
-        # 5. Solid lane markings
-        for line in self.raw_config.get("solid_lines", []):
-            line_pts = self._denormalize(line["points"])
-            p1 = sv.Point(x=line_pts[0][0], y=line_pts[0][1])
-            p2 = sv.Point(x=line_pts[1][0], y=line_pts[1][1])
-            self.solid_lines[line["name"]] = sv.LineZone(start=p1, end=p2)
-
-        # 6. Pedestrian Islands
+        # 5. Pedestrian Islands
         for isl in self.raw_config.get("islands", []):
             isl_pts = self._denormalize(isl["points"])
             self.islands[isl["name"]] = sv.PolygonZone(polygon=isl_pts)
 
-        # 7. Waiting Zones
+        # 6. Waiting Zones
         for wz in self.raw_config.get("waiting_zones", []):
             wz_pts = self._denormalize(wz["points"])
             self.waiting_zones[wz["name"]] = sv.PolygonZone(polygon=wz_pts)
 
-        # 8. Intersections
-        for intersection in self.raw_config.get("intersections", []):
-            points = self._denormalize(intersection["points"])
-            self.intersections[intersection["name"]] = sv.PolygonZone(polygon=points)
+    # Extra geometry added by the traffic-analyzer branch.
+    def _build_extra_geometry(self):
+        for line in self.raw_config.get("solid_lines", []):
+            points = self._denormalize(line["points"])
+            self.solid_lines[line["name"]] = sv.LineZone(
+                start=sv.Point(x=points[0][0], y=points[0][1]),
+                end=sv.Point(x=points[1][0], y=points[1][1]),
+            )
+        for area in self.raw_config.get("intersections", []):
+            self.intersections[area["name"]] = sv.PolygonZone(
+                polygon=self._denormalize(area["points"])
+            )

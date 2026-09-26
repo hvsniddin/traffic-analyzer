@@ -9,12 +9,10 @@ from ultralytics import YOLO
 try:
     from classes import BUS, CAR, MOTORCYCLE, TRUCK
     from scene import SceneGeometry
-    from alignment import align_capture
     from utils import close_finished_events
 except ImportError:
     from detections.classes import BUS, CAR, MOTORCYCLE, TRUCK
     from detections.scene import SceneGeometry
-    from detections.alignment import align_capture
     from detections.utils import close_finished_events
 
 
@@ -139,20 +137,11 @@ def detect_illegal_turn_events(
     fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    alignment = align_capture(cap, fps)
-    if not alignment.valid:
-        cap.release()
-        print(f"Suppressing illegal_turn for {video_path}: {alignment.reason}")
-        return []
-    scene = SceneGeometry("scene.json", frame_width=alignment.reference_size[0], frame_height=alignment.reference_size[1])
+    scene = SceneGeometry("scene.json", frame_width=width, frame_height=height,
+                          video_path=video_path)
     model = YOLO(model_path)
 
-    annotation_scene = (
-        SceneGeometry("scene.json", frame_width=alignment.reference_size[0],
-                      frame_height=alignment.reference_size[1],
-                      point_transform=np.linalg.inv(alignment.video_to_reference))
-        if save_video else None
-    )
+    annotation_scene = scene if save_video else None
     out = None
     annotators = {}
     if save_video:
@@ -189,7 +178,7 @@ def detect_illegal_turn_events(
             last_t_sec = t_sec
             result = model.track(frame, device=device, tracker="bytetrack.yaml", persist=True, verbose=False)[0]
             detections = sv.Detections.from_ultralytics(result)
-            event_mask = evaluate_illegal_turn_spatial(alignment.detections(detections), scene, turn_states, t_sec)
+            event_mask = evaluate_illegal_turn_spatial(detections, scene, turn_states, t_sec)
             ids = getattr(detections, "tracker_id", None)
             current_ids = set(np.asarray(ids)[event_mask]) if ids is not None else set()
             for tracker_id in current_ids:

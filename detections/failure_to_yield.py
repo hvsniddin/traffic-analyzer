@@ -9,11 +9,9 @@ from ultralytics import YOLO
 try:
     from classes import BUS, CAR, MOTORCYCLE, PERSON, TRUCK
     from scene import SceneGeometry
-    from alignment import align_capture
 except ImportError:
     from detections.classes import BUS, CAR, MOTORCYCLE, PERSON, TRUCK
     from detections.scene import SceneGeometry
-    from detections.alignment import align_capture
 
 
 VEHICLE_CLASSES = {CAR, BUS, TRUCK, MOTORCYCLE}
@@ -136,20 +134,11 @@ def detect_failure_to_yield_events(
     fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    alignment = align_capture(cap, fps)
-    if not alignment.valid:
-        cap.release()
-        print(f"Suppressing failure_to_yield for {video_path}: {alignment.reason}")
-        return []
-    scene = SceneGeometry("scene.json", frame_width=alignment.reference_size[0], frame_height=alignment.reference_size[1])
+    scene = SceneGeometry("scene.json", frame_width=width, frame_height=height,
+                          video_path=video_path)
     model = YOLO(model_path)
 
-    annotation_scene = (
-        SceneGeometry("scene.json", frame_width=alignment.reference_size[0],
-                      frame_height=alignment.reference_size[1],
-                      point_transform=np.linalg.inv(alignment.video_to_reference))
-        if save_video else None
-    )
+    annotation_scene = scene if save_video else None
     out = None
     annotators = {}
     if save_video:
@@ -185,7 +174,7 @@ def detect_failure_to_yield_events(
                 frame, device=device, tracker="bytetrack.yaml", persist=True, verbose=False
             )[0]
             detections = sv.Detections.from_ultralytics(results)
-            aligned = alignment.detections(detections)
+            aligned = detections
             event_mask = evaluate_failure_to_yield_spatial(
                 aligned, scene, crossing_states, t_sec
             )

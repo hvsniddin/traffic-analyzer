@@ -1,6 +1,6 @@
 {
-  "source": "data/C3905.MP4",
-  "reference_time_sec": 0.0,
+  "source": "C3897.MP4",
+  "reference_time_sec": 287.0,
   "reference_size": [
     3840,
     2160

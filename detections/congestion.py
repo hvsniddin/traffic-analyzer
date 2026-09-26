@@ -10,11 +10,9 @@ import supervision as sv
 from ultralytics import YOLO
 
 try:
-    from alignment import align_capture
     from classes import BUS, CAR, MOTORCYCLE, TRUCK
     from scene import SceneGeometry
 except ImportError:
-    from detections.alignment import align_capture
     from detections.classes import BUS, CAR, MOTORCYCLE, TRUCK
     from detections.scene import SceneGeometry
 
@@ -219,23 +217,14 @@ def detect_congestion_events(
     fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    alignment = align_capture(cap, fps)
-    if not alignment.valid:
-        cap.release()
-        print(f"Suppressing congestion for {video_path}: {alignment.reason}")
-        return []
-    scene = SceneGeometry("scene.json", frame_width=alignment.reference_size[0],
-                          frame_height=alignment.reference_size[1])
+    scene = SceneGeometry("scene.json", frame_width=width, frame_height=height,
+                          video_path=video_path)
     model = YOLO(model_path)
 
     out = None
     annotators = {}
     if save_video:
-        annotation_scene = SceneGeometry(
-            "scene.json", frame_width=alignment.reference_size[0],
-            frame_height=alignment.reference_size[1],
-            point_transform=np.linalg.inv(alignment.video_to_reference),
-        )
+        annotation_scene = scene
         out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (width, height))
         annotators = {
             "box": sv.BoxAnnotator(color=sv.Color.RED, thickness=3),
@@ -257,7 +246,7 @@ def detect_congestion_events(
                                  persist=True, verbose=False)[0]
             detections = sv.Detections.from_ultralytics(result)
             congested, slow_ids, congested_zones = evaluate_congestion_spatial(
-                alignment.detections(detections), scene, track_history, t_sec
+                detections, scene, track_history, t_sec
             )
             events.extend(update_congestion_event(state, congested, t_sec, min_duration))
             if congested_zones:

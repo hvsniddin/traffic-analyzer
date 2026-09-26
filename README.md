@@ -2,17 +2,19 @@
 
 ## Scene alignment for spatial rules
 
-`scene.json` stores polygons and lines in normalized coordinates relative to
-its `source` video and `reference_time_sec`. Normalization handles resizing;
-the spatial detectors also align each video's first clear frame to that exact
-reference frame. They use SIFT matches, a RANSAC homography, and held-out
-feature landmarks to check the fit before mapping tracked boxes into reference
-pixels. Saved annotation videos project scene shapes back into video pixels.
+`scene.json` stores polygons and lines in normalized coordinates from C3897 at
+287 seconds. The matching frame is bundled as `scene_reference.jpg`, so the
+sample video is not required during inference. `SceneGeometry` estimates a
+reference-to-video homography from stationary SIFT features and moves every
+polygon and line into the current video coordinates. Detections and tracks stay
+in video coordinates. It checks match count, RANSAC inliers, residual error,
+corner movement, and agreement between two sample frames before accepting a
+transform. If alignment fails, it uses the original polygons and records the
+reason in `SceneGeometry.alignment_status` for review.
 
-Keep the reference video available at the path in `scene.json` (relative to the
-scene file). If the reference is unavailable or landmark validation fails, the
-scene-dependent detector reports the reason and returns no events for that
-video. A changed camera view needs a new reference scene or a reliable match.
+Set `WIUT_DISABLE_SCENE_ALIGNMENT=1` to compare event rules with the original
+polygons. The main repository's `docs/scene_alignment.md` records the measured
+shifts and overlays for all four provided clips.
 
 Traffic events from a fixed road camera: **detect** them as time segments
 (`[start_sec, end_sec, label]`) and, as a bonus, **anticipate** accidents with a
