@@ -79,6 +79,7 @@ def _detect_events(
     import cv2
     import supervision as sv
     from ultralytics import YOLO
+    import torch
 
     from detections.scene import SceneGeometry
     from detections.classes import PERSON
@@ -101,7 +102,11 @@ def _detect_events(
     height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
     frame_count = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
     duration = frame_count / fps if frame_count > 0 else float("inf")
-    stride = max(1, round(fps / 4.0))
+    # GPU evaluation can keep short events; CPU inference needs a lower sample
+    # rate to fit the organizer's strict 3x wall-clock budget.
+    default_rate = 5.0 if torch.cuda.is_available() else 0.5
+    target_rate = float(os.getenv("WIUT_INFERENCE_FPS", str(default_rate)))
+    stride = max(1, round(fps / target_rate))
     sample_period = stride / fps
 
     try:
@@ -235,8 +240,10 @@ class RiskEstimator:
         meta = {"video_id": str, "fps": float, "width": int, "height": int,
                 "n_frames": int}
         """
-        self.meta = meta
-        self.last_score = 0.0
+        # Part B is optional. A constant-zero curve cannot score and decoding
+        # the full 4K video again can put Part A over the 3x time budget.
+        # The unchanged starter harness catches this and keeps Part A events.
+        raise NotImplementedError("Part B risk anticipation is not implemented")
 
     def step(self, frame: np.ndarray, t_sec: float) -> float:
         """Return P(accident starts within the next RISK_HORIZON_SEC s).
@@ -252,4 +259,4 @@ class RiskEstimator:
         """
         # TODO: replace this stub. A simple strong baseline: track vehicles,
         # estimate time-to-collision between pairs, map min TTC -> risk.
-        return self.last_score
+        return 0.0

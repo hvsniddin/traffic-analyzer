@@ -1,4 +1,3 @@
-// TODO(team): replace every "TODO" entry before the submission tag.
 export type Member = {
 	name: string
 	role: string
@@ -12,25 +11,22 @@ export const teamName = 'Lorem Ipsum'
 export const members: Member[] = [
 	{
 		name: "Ja'farbek Yusupov",
-		role: 'TODO: role',
-		contributions: ['TODO: what you built'],
-		links: [
-			{ label: 'GitHub', href: 'https://github.com/TODO' },
-			{ label: 'LinkedIn', href: 'https://www.linkedin.com/in/TODO' },
-		],
-		projects: ['TODO: a previous project you are proud of'],
+		role: 'Scene mapping, event logic, and integration',
+		contributions: ['Manual event labels and fixed-camera scene layout', 'Event rules, backend integration, and evaluation'],
+		links: [],
+		projects: [],
 	},
 	{
-		name: 'TODO: name (hvsniddin)',
-		role: 'TODO: role',
-		contributions: ['TODO: what you built'],
+		name: 'Husniddin Ravshanov',
+		role: 'Model training and event detection',
+		contributions: ['Detector testing and fine-tuning', 'Event detection rules and solution implementation'],
 		links: [{ label: 'GitHub', href: 'https://github.com/hvsniddin' }],
-		projects: ['TODO: a previous project'],
+		projects: [],
 	},
 	{
-		name: 'TODO: third member',
-		role: 'TODO: role',
-		contributions: ['TODO: what you built'],
+		name: 'Azizbek Rakhmatulloyev',
+		role: 'Frontend and annotation',
+		contributions: ['Website frontend', 'Bounding-box annotations for detector fine-tuning'],
 		links: [],
 		projects: [],
 	},
