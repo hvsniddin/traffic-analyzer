@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 
 import { PageHeader } from '@/components/shared/page-header'
+import { ResultsSection } from '@/components/shared/results-section'
 import { config } from '@/lib/config'
 
 export const metadata: Metadata = { title: 'Technical report' }
@@ -25,6 +26,8 @@ export default function ReportPage() {
 					The same entry point backs the live demo. See the <Link href='/approach/'>approach</Link>{' '}
 					for the diagram and every rule.
 				</p>
+
+				<ResultsSection />
 
 				<h2>What worked</h2>
 				<ul>

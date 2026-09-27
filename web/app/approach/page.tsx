@@ -101,6 +101,8 @@ export default function ApproachPage() {
 										<td className='px-3 py-2.5'>
 											{approach.status === 'rule' ? (
 												<Badge variant='success'>Rule</Badge>
+											) : approach.status === 'computed' ? (
+												<Badge variant='outline'>Computed, not reported</Badge>
 											) : (
 												<Badge variant='outline'>Not yet</Badge>
 											)}

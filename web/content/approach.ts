@@ -17,7 +17,8 @@ export const pipeline: Stage[] = [
 	{ title: 'Events', kind: 'io', detail: '[start_sec, end_sec, label]' },
 ]
 
-export type ClassApproach = { status: 'rule' | 'planned'; how: string }
+// 'computed' rules run but are not reported (SUPPRESSED_CLASSES in solution.py).
+export type ClassApproach = { status: 'rule' | 'computed' | 'planned'; how: string }
 
 // Mirrors the modules in ../detections/. Update when a class gains a detector.
 export const classApproach: Record<EventClass, ClassApproach> = {
@@ -50,16 +51,16 @@ export const classApproach: Record<EventClass, ClassApproach> = {
 		how: 'A vehicle brakes hard (speed roughly halves within 0.5 s) or swerves (heading turns more than about 45°) while another road user’s projected closest approach is under 0.85 box widths within 1.25 s. Pairs whose boxes overlap for two or more samples are dropped as possible contact.',
 	},
 	congestion: {
-		status: 'rule',
-		how: 'At least five slow vehicles (under 0.6 box heights per second) in a close chain within one lane direction, confirmed after 2 s and closed after 1 s clear. stopped_vehicle also uses it to recognise queues.',
+		status: 'computed',
+		how: 'At least five slow vehicles (under 0.6 box heights per second) in a close chain within one lane direction, confirmed after 2 s and closed after 1 s clear. stopped_vehicle also uses it to recognise queues. Not reported: it fired on ordinary red-light queues (37 false positives, 1 labelled event).',
 	},
 	wrong_way: {
-		status: 'rule',
-		how: 'A vehicle’s ~1 s displacement points more than 120° away from its lane’s drawn direction for 1.5 s. The event starts when the opposing motion is first seen.',
+		status: 'computed',
+		how: 'A vehicle’s ~1 s displacement points more than 120° away from its lane’s drawn direction for 1.5 s. The event starts when the opposing motion is first seen. Not reported: normal flow through lane_2 does not follow its drawn direction (43 false positives, 0 labelled events).',
 	},
 	stopped_vehicle: {
-		status: 'rule',
-		how: 'A vehicle’s road contact point stays still for 10 s or more in a lane or the junction. Stops in signal approach lanes during red or congestion, or next to another stopped vehicle, count as queues and are excluded.',
+		status: 'computed',
+		how: 'A vehicle’s road contact point stays still for 10 s or more in a lane or the junction. Stops in signal approach lanes during red or congestion, or next to another stopped vehicle, count as queues and are excluded. Not reported: 10 false positives, 0 labelled events.',
 	},
 	accident: {
 		status: 'planned',
