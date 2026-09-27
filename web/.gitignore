@@ -1,0 +1,11 @@
+/node_modules
+/.next/
+/out/
+*.tsbuildinfo
+next-env.d.ts
+.env*
+!.env.example
+.vercel
+CLAUDE.md
+AGENTS.md
+/.cache/

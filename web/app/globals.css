@@ -1,0 +1,132 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+	--background: #fcfcfb;
+	--foreground: #0b0b0b;
+	--card: #ffffff;
+	--muted: #f3f2ef;
+	--muted-foreground: #52514e;
+	--border: #e4e3de;
+	--primary: #1f5fb8;
+	--primary-foreground: #ffffff;
+	--destructive: #c93a39;
+	--success: #0f7a3d;
+	--grid: #e9e8e4;
+
+	/* Event families: validated CVD-safe in both modes. */
+	--family-pedestrian: #2a78d6;
+	--family-collision: #eb6834;
+	--family-violation: #1baf7a;
+	--family-flow: #8d8c86;
+
+	/* Detector classes: categorical slots 1–6 in fixed order. */
+	--series-1: #2a78d6;
+	--series-2: #eb6834;
+	--series-3: #1baf7a;
+	--series-4: #eda100;
+	--series-5: #e87ba4;
+	--series-6: #008300;
+}
+
+.dark {
+	--background: #121211;
+	--foreground: #f5f5f3;
+	--card: #1a1a19;
+	--muted: #242422;
+	--muted-foreground: #c3c2b7;
+	--border: #2e2e2b;
+	--primary: #5598e7;
+	--primary-foreground: #0b0b0b;
+	--destructive: #e66767;
+	--success: #3fbf74;
+	--grid: #2a2a27;
+
+	--family-pedestrian: #3987e5;
+	--family-collision: #d95926;
+	--family-violation: #199e70;
+	--family-flow: #8a8980;
+
+	--series-1: #3987e5;
+	--series-2: #d95926;
+	--series-3: #199e70;
+	--series-4: #c98500;
+	--series-5: #d55181;
+	--series-6: #008300;
+}
+
+@theme inline {
+	--color-background: var(--background);
+	--color-foreground: var(--foreground);
+	--color-card: var(--card);
+	--color-muted: var(--muted);
+	--color-muted-foreground: var(--muted-foreground);
+	--color-border: var(--border);
+	--color-primary: var(--primary);
+	--color-primary-foreground: var(--primary-foreground);
+	--color-destructive: var(--destructive);
+	--color-success: var(--success);
+	--color-family-pedestrian: var(--family-pedestrian);
+	--color-family-collision: var(--family-collision);
+	--color-family-violation: var(--family-violation);
+	--color-family-flow: var(--family-flow);
+	--font-sans: var(--font-geist-sans);
+	--font-mono: var(--font-geist-mono);
+}
+
+@layer base {
+	* {
+		@apply border-border;
+	}
+	html {
+		color-scheme: light;
+		scroll-behavior: smooth;
+	}
+	html.dark {
+		color-scheme: dark;
+	}
+	body {
+		@apply bg-background text-foreground antialiased;
+	}
+	/* Grid items default to min-width: auto, so a wide table or chart would widen
+	   the whole page on phones. Let them shrink; wide content scrolls inside. */
+	.grid > * {
+		min-width: 0;
+	}
+	::selection {
+		@apply bg-primary/20;
+	}
+}
+
+/* Long-form report and approach pages. */
+.prose-page {
+	@apply grid max-w-3xl gap-4 text-[15px] leading-relaxed;
+}
+.prose-page h2 {
+	@apply mt-6 text-xl font-semibold tracking-tight;
+}
+.prose-page h3 {
+	@apply mt-3 font-semibold;
+}
+.prose-page ul {
+	@apply grid list-disc gap-1.5 ps-5;
+}
+.prose-page ol {
+	@apply grid list-decimal gap-1.5 ps-5;
+}
+.prose-page code {
+	@apply rounded bg-muted px-1 py-0.5 font-mono text-[13px];
+}
+.prose-page a {
+	@apply text-primary underline underline-offset-2;
+}
+
+@keyframes slide {
+	0% {
+		left: -33%;
+	}
+	100% {
+		left: 100%;
+	}
+}
