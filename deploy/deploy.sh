@@ -19,7 +19,7 @@ systemctl --user restart traffic-analyzer
 for _ in $(seq 30); do
 	if curl -fs http://127.0.0.1:8000/api/health >/dev/null; then
 		echo "API healthy"
-		podman image prune -f >/dev/null
+		podman image prune -f >/dev/null 2>&1 || true
 		exit 0
 	fi
 	sleep 2
