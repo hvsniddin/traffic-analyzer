@@ -1,16 +1,12 @@
 """
-solution.py — the ONLY file a team has to implement.
-
-The organizers' harness (run_submission.py) imports this module and calls:
+Submission entry point, imported by the organizers' run_submission.py:
 
     detect_events(video_path)  -> [[start_sec, end_sec, label], ...]    # Part A
-    RiskEstimator().reset(meta); .step(frame, t_sec) -> float           # Part B (optional)
+    RiskEstimator().reset(meta); .step(frame, t_sec) -> float           # Part B
 
-Keep the names and signatures exactly as they are. Everything else — models,
-tracking, rules, helper modules under src/ — is up to you.
-
-Labels must come from CLASSES. You may REMOVE classes you never predict;
-do not add new ids.
+Part A runs one detector + ByteTrack pass at DEFAULT_INFERENCE_FPS and feeds
+the tracks to the rule modules in detections/. Part B scores pairwise
+time-to-collision with detections/risk.py. See README.md for the approach.
 """
 from __future__ import annotations
 
@@ -102,9 +98,7 @@ def detect_events(video_path: str) -> list[list]:
     """Part A — traffic event detection.
 
     Args:
-        video_path: path to one .mp4 file. You may open it any way you like
-            (OpenCV, decord, PyAV, ffmpeg), read it several times, sample
-            frames, run batched models — anything goes.
+        video_path: path to one .mp4 file.
 
     Returns:
         A list of events, each ``[start_sec, end_sec, label]`` with
@@ -112,15 +106,10 @@ def detect_events(video_path: str) -> list[list]:
         first frame) and ``label in CLASSES``. Return ``[]`` if nothing
         happened. Segments of the same class must not overlap.
 
-    A typical pipeline:
-        1. sample frames (every 2nd–5th frame is usually enough),
-        2. detect road users (YOLO / RT-DETR) and track them (ByteTrack),
-        3. turn trajectories + scene layout (lanes, stop line, crossing)
-           into per-frame flags for each class,
-        4. merge consecutive flags into segments, drop blips < 0.5 s,
-           merge gaps < 1 s,
-        5. optionally re-score `accident` / `near_miss` candidates with a
-           learned clip classifier.
+    Samples frames at DEFAULT_INFERENCE_FPS, detects and tracks road users,
+    turns tracks and the aligned scene map into per-track flags per class,
+    then merges flags into segments (MERGE_GAP_SEC), drops segments shorter
+    than MIN_EVENT_SEC, and leaves out SUPPRESSED_CLASSES.
     """
     return _detect_events(video_path)
 
