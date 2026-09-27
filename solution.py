@@ -15,9 +15,57 @@ do not add new ids.
 from __future__ import annotations
 
 import os
+import random
+import time
 from typing import Callable
 
 import numpy as np
+
+SEED = 0
+DEFAULT_INFERENCE_FPS = 2.0
+# The harness scores a video as empty past 3x its duration, so Part A stops
+# early and keeps what it has found once this share of the budget is used.
+# Model loading and alignment are inside the budget; past the guard only one
+# sample and event closing remain (<1 s on GPU, a few seconds on CPU). The
+# absolute margin protects short clips where 0.3x is only a second or two.
+TIME_BUDGET_FACTOR = float(os.getenv("WIUT_TIME_BUDGET_FACTOR", "2.7"))
+MIN_TIME_MARGIN_SEC = 3.0
+
+
+# Pedestrians drop out of tracking for a few seconds at a time; one person on
+# the road is one annotated segment. Tuned on our dev labels (see README).
+DEFAULT_MERGE_GAP_SEC = 1.5
+MERGE_GAP_SEC = {"jaywalking": 8.0, "stopped_vehicle": 5.0, "wrong_way": 3.0}
+# Congestion fires on ordinary red-light queues (37 FP / 1 GT on dev), so it
+# is still computed for other rules but not reported.
+SUPPRESSED_CLASSES = {"congestion"}
+
+HARNESS_TIME_FACTOR = 3.0
+# Part B runs detection at this rate; step() returns the last score in between.
+RISK_INFERENCE_FPS = 5.0
+# Reading a frame (decode + BGR conversion) is slower than Part A's grab().
+HARNESS_READ_SLOWDOWN = 2.0
+RISK_SAFETY_MARGIN = 0.85
+_PART_A_TIMING: dict = {}
+
+
+def _seed_everything(seed: int = SEED) -> None:
+    import torch
+
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
+
+
+def _device() -> str:
+    """First GPU when torch sees CUDA (the organizers' T4), otherwise CPU."""
+    import torch
+
+    return "cuda:0" if torch.cuda.is_available() else "cpu"
 
 # Official class ids (14). See the task description for definitions and
 # start/end conventions. Remove entries you never predict; never add.
@@ -73,14 +121,19 @@ def detect_events(video_path: str) -> list[list]:
 def _detect_events(
     video_path: str,
     on_sample: Callable | None = None,
+    sample_rate: float | None = None,
+    time_budget_factor: float | None = None,
 ) -> list[list]:
-    """Run detection, optionally exposing each sampled frame to the annotator."""
+    """Run detection, optionally exposing each sampled frame to the annotator.
+
+    ``sample_rate`` and ``time_budget_factor`` let the demo API trade speed
+    for detail; the submission path uses the defaults.
+    """
     from pathlib import Path
 
     import cv2
     import supervision as sv
     from ultralytics import YOLO
-    import torch
 
     from detections.scene import SceneGeometry
     from detections.classes import PERSON
@@ -91,7 +144,11 @@ def _detect_events(
     from detections.illegal_turn import evaluate_illegal_turn_spatial
     from detections.congestion import evaluate_congestion_spatial
     from detections.near_miss import NearMissDetector, evaluate_near_miss_spatial
+    from detections.stopped_vehicle import evaluate_stopped_vehicle_spatial
+    from detections.wrong_way import evaluate_wrong_way_spatial
 
+    started = time.perf_counter()
+    _seed_everything()
     root = Path(__file__).resolve().parent
     capture = cv2.VideoCapture(video_path)
     if not capture.isOpened():
@@ -103,13 +160,18 @@ def _detect_events(
     height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
     frame_count = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
     duration = frame_count / fps if frame_count > 0 else float("inf")
-    # GPU evaluation can keep short events; CPU inference needs a lower sample
-    # rate to fit the organizer's strict 3x wall-clock budget.
-    default_rate = 5.0 if torch.cuda.is_available() else 0.5
-    target_rate = float(os.getenv("WIUT_INFERENCE_FPS", str(default_rate)))
+    # One rate on every device keeps CPU and GPU output identical, so
+    # predictions_samples.json can be reproduced anywhere. 2 FPS gives the
+    # velocity-based rules samples under 1 s apart and fits 3x even on CPU.
+    target_rate = sample_rate or float(os.getenv("WIUT_INFERENCE_FPS", str(DEFAULT_INFERENCE_FPS)))
     stride = max(1, round(fps / target_rate))
     sample_period = stride / fps
-    seek_samples = not torch.cuda.is_available() and frame_count > 0
+    # Below ~1 FPS, seeking to each sample beats decoding every 4K frame.
+    seek_samples = target_rate < 1.0 and frame_count > 0
+    factor = time_budget_factor or TIME_BUDGET_FACTOR
+    deadline = started + min(factor * duration, HARNESS_TIME_FACTOR * duration - MIN_TIME_MARGIN_SEC)
+    device = _device()
+    print(f"[solution] {Path(video_path).name}: device={device}, {target_rate:g} FPS sampling", flush=True)
 
     try:
         scene = SceneGeometry(str(root / "scene.json"), width, height, video_path=video_path)
@@ -117,6 +179,7 @@ def _detect_events(
         histories = {
             "traffic_light": {}, "failure_to_yield": {},
             "solid_line_crossing": {}, "illegal_turn": {}, "congestion": {},
+            "stopped_vehicle": {}, "wrong_way": {},
         }
         near_miss = NearMissDetector()
         active: dict[tuple[str, int], tuple[float, float]] = {}
@@ -134,7 +197,13 @@ def _detect_events(
                 if end - start >= minimum:
                     events.append([start, end, key[0]])
 
+        loop_started = time.perf_counter()
+        processing_sec = 0.0
+        processed = 0
         while frame_count <= 0 or frame_index < frame_count:
+            if time.perf_counter() > deadline:
+                # Partial events score better than a video emptied by the harness.
+                break
             if seek_samples:
                 # Random access avoids decoding every skipped 4K frame on CPU.
                 # It also recovers after damaged H.264 packets in C3896.
@@ -166,11 +235,12 @@ def _detect_events(
                     capture.set(cv2.CAP_PROP_POS_FRAMES, next_index)
                     frame_index = next_index
                     continue
+            sample_started = time.perf_counter()
             t_sec = sampled_index / fps
             last_time = t_sec
             result = model.track(
                 frame, persist=True, tracker="bytetrack.yaml", conf=0.3,
-                imgsz=640, verbose=False,
+                imgsz=640, device=device, verbose=False,
             )[0]
             detections = sv.Detections.from_ultralytics(result)
             ids = detections.tracker_id
@@ -203,11 +273,24 @@ def _detect_events(
             congested, _, congested_zones = evaluate_congestion_spatial(
                 detections, scene, histories["congestion"], t_sec
             )
+            masks["stopped_vehicle"] = evaluate_stopped_vehicle_spatial(
+                detections, scene, histories["stopped_vehicle"], t_sec,
+                signal_is_red=histories["traffic_light"].get("signal_is_red", False),
+                congested=congested,
+            )
+            masks["wrong_way"] = evaluate_wrong_way_spatial(
+                detections, scene, histories["wrong_way"], t_sec
+            )
+            rule_starts = {
+                **event_starts,
+                **histories["stopped_vehicle"]["starts"],
+                **histories["wrong_way"]["starts"],
+            }
             if on_sample is not None:
                 jaywalking_mask = np.zeros(len(detections), dtype=bool)
                 jaywalking_mask[np.flatnonzero(detections.class_id == PERSON)] = jaywalkers
                 on_sample(
-                    frame_index - 1, detections, ids,
+                    sampled_index, detections, ids,
                     {**masks, "jaywalking": jaywalking_mask},
                     congested, congested_zones, scene,
                 )
@@ -223,7 +306,7 @@ def _detect_events(
                     if track_id < 0:
                         continue
                     key = (label, int(track_id))
-                    start = active.get(key, (event_starts.get(key, t_sec), t_sec))[0]
+                    start = active.get(key, (rule_starts.get(key, t_sec), t_sec))[0]
                     active[key] = (start, t_sec)
             for track_id in people_ids[jaywalkers]:
                 if track_id < 0:
@@ -232,8 +315,21 @@ def _detect_events(
                 start = active.get(key, (t_sec, t_sec))[0]
                 active[key] = (start, t_sec)
             close_expired(t_sec)
+            processing_sec += time.perf_counter() - sample_started
+            processed += 1
 
         close_expired(min(duration, last_time + sample_period), force=True)
+        # Timing only (no events) for RiskEstimator's decision to run in budget.
+        decode_sec = time.perf_counter() - loop_started - processing_sec
+        _PART_A_TIMING.clear()
+        _PART_A_TIMING.update({
+            "video_id": Path(video_path).name,
+            "started": started,
+            "duration": duration,
+            "sequential": not seek_samples,
+            "decode_fps": frame_index / decode_sec if decode_sec > 0 else 0.0,
+            "sample_sec": processing_sec / processed if processed else 0.0,
+        })
         events.extend(near_miss.finish(min(duration, last_time + sample_period)))
     finally:
         capture.release()
@@ -241,7 +337,10 @@ def _detect_events(
     # Merge nearby detections of the same class, including adjacent tracks.
     merged = []
     for start, end, label in sorted(events, key=lambda item: (item[2], item[0])):
-        if merged and merged[-1][2] == label and start - merged[-1][1] < 1.5:
+        if label in SUPPRESSED_CLASSES:
+            continue
+        gap = MERGE_GAP_SEC.get(label, DEFAULT_MERGE_GAP_SEC)
+        if merged and merged[-1][2] == label and start - merged[-1][1] < gap:
             merged[-1][1] = max(merged[-1][1], end)
         else:
             merged.append([start, end, label])
@@ -249,12 +348,15 @@ def _detect_events(
 
 
 class RiskEstimator:
-    """Part B — causal accident anticipation (optional, bonus).
+    """Part B — causal accident anticipation.
 
-    The harness calls ``reset(meta)`` once per video and then ``step`` for
-    EVERY frame, in order. ``step`` must use only the frames it has seen so
-    far: do not open the video file inside this class, and do not reuse
-    Part A results that were computed with access to future frames.
+    Runs its own detector and tracker on every ``fps / RISK_INFERENCE_FPS``-th
+    frame it receives and scores pairwise time-to-collision
+    (``detections.risk``). It never opens the video and never reads Part A
+    events; from Part A it only takes wall-clock timing, to decide whether
+    the harness's full-video decode still fits the 3x budget. If it would
+    not, ``reset`` raises: the harness logs it and keeps Part A's events,
+    which is worth more than a risk curve on a video scored as empty.
     """
 
     def reset(self, meta: dict) -> None:
@@ -263,10 +365,44 @@ class RiskEstimator:
         meta = {"video_id": str, "fps": float, "width": int, "height": int,
                 "n_frames": int}
         """
-        # Part B is optional. A constant-zero curve cannot score and decoding
-        # the full 4K video again can put Part A over the 3x time budget.
-        # The unchanged starter harness catches this and keeps Part A events.
-        raise NotImplementedError("Part B risk anticipation is not implemented")
+        from pathlib import Path
+
+        from ultralytics import YOLO
+
+        from detections.risk import CollisionRisk
+
+        fps = float(meta.get("fps") or 25.0)
+        n_frames = int(meta.get("n_frames") or 0)
+        self.stride = max(1, round(fps / RISK_INFERENCE_FPS))
+        self.score = 0.0
+        self.frame_index = 0
+        self.n_frames = n_frames
+        mode = os.getenv("WIUT_RISK", "auto")
+        if mode == "0":
+            raise RuntimeError("Part B disabled by WIUT_RISK=0")
+
+        timing = _PART_A_TIMING if _PART_A_TIMING.get("video_id") == meta.get("video_id") else {}
+        now = time.perf_counter()
+        if timing:
+            self.read_fps = timing["decode_fps"] / HARNESS_READ_SLOWDOWN
+            self.budget_end = timing["started"] + RISK_SAFETY_MARGIN * HARNESS_TIME_FACTOR * timing["duration"]
+            sample_sec = timing["sample_sec"]
+        else:
+            self.read_fps, self.budget_end, sample_sec = 0.0, float("inf"), 0.0
+        if mode != "1":
+            if _device() == "cpu" or not timing.get("sequential") or self.read_fps <= 0:
+                raise RuntimeError("Part B skipped: needs a GPU run of Part A on this video first")
+            needed = n_frames / self.read_fps + (n_frames / self.stride) * sample_sec
+            if now + needed > self.budget_end:
+                raise RuntimeError(
+                    f"Part B skipped: needs ~{needed:.0f}s, "
+                    f"{max(0.0, self.budget_end - now):.0f}s left in the time budget")
+
+        _seed_everything()
+        root = Path(__file__).resolve().parent
+        self.model = YOLO(str(root / "weights" / "best.pt"))
+        self.device = _device()
+        self.risk = CollisionRisk()
 
     def step(self, frame: np.ndarray, t_sec: float) -> float:
         """Return P(accident starts within the next RISK_HORIZON_SEC s).
@@ -280,6 +416,20 @@ class RiskEstimator:
             previous score is fine; the harness still expects a value for
             every call.
         """
-        # TODO: replace this stub. A simple strong baseline: track vehicles,
-        # estimate time-to-collision between pairs, map min TTC -> risk.
-        return 0.0
+        import supervision as sv
+
+        index = self.frame_index
+        self.frame_index += 1
+        if index % self.stride:
+            return self.score
+        # Behind schedule: stop inferring so the remaining decode still fits.
+        if self.read_fps > 0:
+            remaining = max(0, self.n_frames - index) / self.read_fps
+            if time.perf_counter() + remaining > self.budget_end:
+                return self.score
+        result = self.model.track(
+            frame, persist=True, tracker="bytetrack.yaml", conf=0.3,
+            imgsz=640, device=self.device, verbose=False,
+        )[0]
+        self.score = min(1.0, max(0.0, self.risk.update(sv.Detections.from_ultralytics(result), t_sec)))
+        return self.score

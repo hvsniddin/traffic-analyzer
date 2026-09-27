@@ -10,7 +10,7 @@ if [[ ! -f "$env_file" ]]; then
 fi
 
 git pull --ff-only
-podman build --format docker -t localhost/traffic-analyzer:latest .
+podman build --format docker -f deploy/Dockerfile.api -t localhost/traffic-analyzer:latest .
 
 install -Dm644 deploy/traffic-analyzer.container "$HOME/.config/containers/systemd/traffic-analyzer.container"
 systemctl --user daemon-reload

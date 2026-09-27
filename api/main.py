@@ -16,11 +16,15 @@ import cv2
 from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
-from solution import detect_events
+from detections.overlay import OverlayRecorder
+from solution import _detect_events
 
 
 MAX_BYTES = int(os.getenv("WIUT_MAX_UPLOAD_MB", "200")) * 1024 * 1024
 MAX_DURATION = float(os.getenv("WIUT_MAX_DURATION_SEC", "120"))
+# Same sample rate as the submission by default; the demo has no 3x limit.
+DEMO_FPS = float(os.getenv("WIUT_DEMO_FPS", "2"))
+
 ORIGINS = [s.strip() for s in os.getenv("WIUT_CORS_ORIGINS", "*").split(",") if s.strip()]
 app = FastAPI(title="Traffic Analyzer inference API")
 app.add_middleware(
@@ -39,16 +43,24 @@ def _set(job_id: str, **changes) -> None:
         _jobs[job_id].update(changes)
 
 
-def _run(job_id: str, path: Path, duration: float) -> None:
-    _set(job_id, status="running", stage="Detecting and tracking road users")
+def _run(job_id: str, path: Path, duration: float, fps: float, frames: float,
+         width: int, height: int) -> None:
+    _set(job_id, status="running", stage="Detecting and tracking road users", progress=0.0)
+    recorder = OverlayRecorder(
+        fps, width, height,
+        on_progress=lambda index: _set(job_id, progress=min(0.99, index / frames)) if frames > 0 else None,
+    )
+
     try:
-        events = detect_events(str(path))
+        events = _detect_events(str(path), on_sample=recorder, sample_rate=DEMO_FPS,
+                                time_budget_factor=float("inf"))
         _set(
             job_id,
             status="done",
             stage="Complete",
             progress=1.0,
-            result={"duration_sec": duration, "events": events, "risk": None},
+            result={"duration_sec": duration, "events": events, "risk": recorder.risk,
+                    "overlay": recorder.overlay()},
         )
     except Exception as exc:
         _set(job_id, status="error", stage="Failed", error=str(exc))
@@ -83,6 +95,8 @@ async def create_job(file: UploadFile) -> dict:
                 raise HTTPException(400, "Cannot decode this MP4")
             fps = cap.get(cv2.CAP_PROP_FPS)
             frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
             duration = frames / fps if fps > 0 else 0
         finally:
             cap.release()
@@ -101,7 +115,7 @@ async def create_job(file: UploadFile) -> dict:
             "result": None,
             "error": None,
         }
-    _worker.submit(_run, job_id, path, duration)
+    _worker.submit(_run, job_id, path, duration, fps, frames, width, height)
     return {"job_id": job_id}
 
 
