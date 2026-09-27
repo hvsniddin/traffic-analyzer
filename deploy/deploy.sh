@@ -10,14 +10,14 @@ if [[ ! -f "$env_file" ]]; then
 fi
 
 git pull --ff-only
-podman build -t localhost/traffic-analyzer:latest .
+podman build --format docker -t localhost/traffic-analyzer:latest .
 
 install -Dm644 deploy/traffic-analyzer.container "$HOME/.config/containers/systemd/traffic-analyzer.container"
 systemctl --user daemon-reload
 systemctl --user restart traffic-analyzer
 
 for _ in $(seq 30); do
-	if curl -fsS http://127.0.0.1:8000/api/health >/dev/null; then
+	if curl -fs http://127.0.0.1:8000/api/health >/dev/null; then
 		echo "API healthy"
 		podman image prune -f >/dev/null
 		exit 0
