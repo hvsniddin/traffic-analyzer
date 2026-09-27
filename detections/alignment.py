@@ -19,6 +19,11 @@ MIN_INLIER_RATIO = 0.5
 MAX_MEDIAN_ERROR_PX = 1.5
 MAX_CORNER_SHIFT_FRACTION = 0.08
 MAX_SAMPLE_DISAGREEMENT_PX = 3.0
+# Inputs smaller than the reference (e.g. the website's 540p previews) are
+# upscaled for matching and keep fewer SIFT inliers for the same transform.
+# Inlier gates shrink with the pixel-area ratio; the error gates stay strict.
+MIN_SMALL_INLIER_RATIO = 0.33
+MAX_SMALL_SAMPLE_DISAGREEMENT_PX = 6.0
 
 
 def _landmarks(width: int, height: int) -> np.ndarray:
@@ -29,6 +34,9 @@ def _landmarks(width: int, height: int) -> np.ndarray:
 
 def _estimate_one(reference_gray: np.ndarray, target_bgr: np.ndarray) -> tuple[np.ndarray | None, dict]:
     height, width = reference_gray.shape
+    area_ratio = min(1.0, (target_bgr.shape[0] * target_bgr.shape[1]) / float(width * height))
+    min_inliers = MIN_INLIERS * area_ratio
+    min_ratio = MIN_INLIER_RATIO if area_ratio >= 1.0 else MIN_SMALL_INLIER_RATIO
     target = cv2.resize(target_bgr, (width, height), interpolation=cv2.INTER_AREA)
     target_gray = cv2.cvtColor(target, cv2.COLOR_BGR2GRAY)
     sift = cv2.SIFT_create(nfeatures=6000)
@@ -38,7 +46,7 @@ def _estimate_one(reference_gray: np.ndarray, target_bgr: np.ndarray) -> tuple[n
         return None, {"reason": "no features"}
     pairs = cv2.BFMatcher(cv2.NORM_L2).knnMatch(ref_des, tgt_des, k=2)
     matches = [pair[0] for pair in pairs if len(pair) == 2 and pair[0].distance < 0.75 * pair[1].distance]
-    if len(matches) < MIN_MATCHES:
+    if len(matches) < MIN_MATCHES * area_ratio:
         return None, {"reason": "too few matches", "matches": len(matches)}
     source = np.float32([ref_keys[m.queryIdx].pt for m in matches]).reshape(-1, 1, 2)
     target = np.float32([tgt_keys[m.trainIdx].pt for m in matches]).reshape(-1, 1, 2)
@@ -62,8 +70,8 @@ def _estimate_one(reference_gray: np.ndarray, target_bgr: np.ndarray) -> tuple[n
         "max_corner_shift_px": round(float(corner_shift.max()), 2),
     }
     if (
-        stats["inliers"] < MIN_INLIERS
-        or stats["inlier_ratio"] < MIN_INLIER_RATIO
+        stats["inliers"] < min_inliers
+        or stats["inlier_ratio"] < min_ratio
         or stats["aligned_error_px"] > MAX_MEDIAN_ERROR_PX
         or stats["max_corner_shift_px"] > MAX_CORNER_SHIFT_FRACTION * max(width, height)
     ):
@@ -107,7 +115,9 @@ def estimate_video_alignment(video_path: str, reference_path: str | Path) -> tup
         first = cv2.perspectiveTransform(anchors, estimates[0][0])
         second = cv2.perspectiveTransform(anchors, estimates[1][0])
         disagreement = float(np.linalg.norm(first[:, 0] - second[:, 0], axis=1).max())
-        if disagreement > MAX_SAMPLE_DISAGREEMENT_PX:
+        small = frame.shape[0] < reference_gray.shape[0]
+        limit = MAX_SMALL_SAMPLE_DISAGREEMENT_PX if small else MAX_SAMPLE_DISAGREEMENT_PX
+        if disagreement > limit:
             return None, {"status": "unavailable", "reason": "inconsistent transforms", "max_disagreement_px": round(disagreement, 2)}
     matrix, stats, second = max(estimates, key=lambda item: item[1]["inliers"])
     if stats["original_error_px"] < 2.0:

@@ -41,10 +41,8 @@ class NearMissDetector:
     @staticmethod
     def _threat(a, b):
         """Check recent separation and projected closest approach."""
-        # Image-space paths can appear to cross while the users occupy
-        # different depths (for example, a car below a sidewalk pedestrian).
-        if abs(a["point"][1] - b["point"][1]) > 1.2 * max(a["height"], b["height"]):
-            return False
+        # Points are road contact points, so a projected meeting is on the road
+        # plane; no separate depth check (it hid approaches from up the image).
         scale = max(10.0, min(a["width"], b["width"]) if b["class"] != PERSON else a["width"])
         relative = b["point"] - a["point"]
         velocity = a["before"] - b["velocity"]

@@ -9,6 +9,8 @@ except ImportError:
     from detections.classes import BUS, CAR, GREENLIGHT, MOTORCYCLE, REDLIGHT, TRUCK
 
 VEHICLES = {CAR, BUS, TRUCK, MOTORCYCLE}
+# Pixel values are for 3840x2160 and scale with the frame height.
+REFERENCE_HEIGHT = 2160.0
 STOP_SPEED_PX_PER_SEC = 8.0
 STOP_CONFIRM_SEC = 0.5
 LINE_TOLERANCE_PX = 20.0
@@ -66,6 +68,9 @@ def evaluate_traffic_light_events(detections, scene, history, t_sec,
     the front-crossing timestamp. A stop on the line cancels that candidate.
     """
     count = len(detections)
+    scale = getattr(scene, "frame_height", REFERENCE_HEIGHT) / REFERENCE_HEIGHT
+    tolerance_px *= scale
+    stop_speed = STOP_SPEED_PX_PER_SEC * scale
     red_mask = np.zeros(count, dtype=bool)
     stop_mask = np.zeros(count, dtype=bool)
     classes = np.asarray(getattr(detections, "class_id", np.full(count, -1)))
@@ -101,7 +106,7 @@ def evaluate_traffic_light_events(detections, scene, history, t_sec,
         elapsed = max(t_sec - track["time"], 1e-6)
         movement = center - track["center"]
         speed = float(np.linalg.norm(movement) / elapsed)
-        if speed > STOP_SPEED_PX_PER_SEC:
+        if speed > stop_speed:
             track["direction"] = movement / np.linalg.norm(movement)
         direction = track["direction"]
         front, rear = _ends(box, direction) if direction is not None else (None, None)
@@ -117,7 +122,7 @@ def evaluate_traffic_light_events(detections, scene, history, t_sec,
             track["stop_since"] = None
             track["candidate"] = None
             starts.pop(("stop_line", key), None)
-        elif on_line and speed <= STOP_SPEED_PX_PER_SEC:
+        elif on_line and speed <= stop_speed:
             if track["stop_since"] is None:
                 track["stop_since"] = track["time"] if track["time"] < t_sec else t_sec
             if t_sec - track["stop_since"] >= STOP_CONFIRM_SEC:

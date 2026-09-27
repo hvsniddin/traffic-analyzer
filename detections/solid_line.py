@@ -119,7 +119,9 @@ def evaluate_solid_line_crossing_spatial(detections, scene, crossing_states):
             if line_length == 0:
                 continue
             side = float(_side(line_start, line_end, midpoint) / line_length)
-            clearance = 0.05 * (current_corners[2, 0] - current_corners[3, 0])
+            # A quarter box width keeps box jitter near a marking from
+            # registering as a side change.
+            clearance = 0.25 * (current_corners[2, 0] - current_corners[3, 0])
             if abs(side) < clearance:
                 continue
             old = clear_positions.get(line_name)
