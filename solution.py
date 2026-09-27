@@ -42,6 +42,10 @@ MERGE_GAP_SEC = {"jaywalking": 8.0, "stopped_vehicle": 5.0, "wrong_way": 3.0}
 # fires on normal flow the lane_2 polygon does not capture (43 FP / 0 GT);
 # stopped_vehicle had 10 FP / 0 GT. congestion also feeds stopped_vehicle.
 SUPPRESSED_CLASSES = {"congestion", "wrong_way", "stopped_vehicle"}
+# Final pass after merging: sub-second blips are mostly tracker noise. On dev
+# labels this raised Score A 0.104 -> 0.115 and F1@0.7 0.069 -> 0.078; longer
+# minimums would drop real 1 s events (red_light, failure_to_yield).
+MIN_EVENT_SEC = 1.0
 
 HARNESS_TIME_FACTOR = 3.0
 # Part B runs detection at this rate; step() returns the last score in between.
@@ -349,7 +353,8 @@ def _detect_events(
             merged[-1][1] = max(merged[-1][1], end)
         else:
             merged.append([start, end, label])
-    return sorted(merged, key=lambda item: item[0])
+    kept = [event for event in merged if event[1] - event[0] >= MIN_EVENT_SEC]
+    return sorted(kept, key=lambda item: item[0])
 
 
 class RiskEstimator:

@@ -28,7 +28,7 @@ Three more rules are computed but not reported (`SUPPRESSED_CLASSES` in `solutio
 - `wrong_way` (43 false positives, 0 true events): a vehicle's ~1 s displacement points more than 120° away from its lane's drawn direction for 1.5 s. It fires on normal traffic in `lane_2` that the drawn polygon does not capture.
 - `stopped_vehicle` (10 false positives, 0 true events): a vehicle's road contact point stays still for 10 s or more in a lane or the intersection. Stops in signal approach lanes during red, or next to another stopped vehicle, count as queues.
 
-Suppressing the three raised dev Score A from 0.070 to 0.085. Same-class intervals are merged across gaps shorter than 1.5 s, or 8 s for `jaywalking`, because pedestrians drop out of tracking briefly. `accident`, `illegal_u_turn`, `road_obstacle`, and `fire_smoke` have no detector.
+Suppressing the three raised dev Score A from 0.070 to 0.085. Same-class intervals are merged across gaps shorter than 1.5 s, or 8 s for `jaywalking`, because pedestrians drop out of tracking briefly. After merging, segments shorter than 1 s are dropped; on our dev labels this raised Score A from 0.104 to 0.115 and F1 at IoU 0.7 from 0.069 to 0.078, and longer minimums would drop genuine 1 s events. `accident`, `illegal_u_turn`, `road_obstacle`, and `fire_smoke` have no detector.
 
 **Part B** (`detections/risk.py`) runs the same detector and a separate tracker at 5 FPS inside `RiskEstimator.step`, using only the frames received so far. For every pair of road users that includes a vehicle, it projects both at constant velocity. A pair adds risk when it closes faster than 2 box widths per second on non-parallel headings, and its closest approach is within 0.3 of the larger box width and less than 5 s away. The risk grows as that time and distance shrink, and a hard brake or swerve adds to it. The frame score is the worst pair, averaged over the last second. With no accidents in the sample videos, thresholds were set to keep false alarms rare on normal traffic, not calibrated against real crashes.
 
@@ -46,6 +46,8 @@ python evaluate.py --pred predictions_samples.json --validate-only
 The four provided MP4s are deliberately excluded from Git because they total tens of GB. `predictions_samples.json` should contain the actual output of the pipeline, not manual labels.
 
 `scripts/export_samples.py --videos /path/to/sample-videos` produces `predictions_samples.json` and the website's per-video overlays (`web/public/samples/<id>/overlay.json`: boxes, event flags, scene geometry, and the risk curve) in a single pass. It calls the same deterministic `_detect_events` and the harness's own `clean_events`, so its events match a `run_submission.py` run. After it, `python scripts/refresh_samples.py` copies the predictions into the sample pages.
+
+The committed `predictions_samples.json` was produced this way from the four original 4K sample videos on a CPU-only laptop (2 FPS sampling, 2.6–2.9x real time, so without the harness's time guard). Part B is skipped on CPU, so its risk curves are empty. On a GPU, `run_submission.py` gives the same events up to floating-point noise. Against our dev labels it scores Score A = 0.112 (F1 0.53 / 0.34 / 0.15 for jaywalking at IoU 0.3 / 0.5 / 0.7, and 0.48 mean for stop_line).
 
 ## Live demo and website
 

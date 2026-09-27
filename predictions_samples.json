@@ -4,127 +4,62 @@
   "C3896.MP4": {
    "events": [
     [
-     2.002,
-     40.04,
-     "congestion"
-    ],
-    [
-     4.004,
-     6.006,
-     "solid_line_crossing"
-    ],
-    [
-     46.046,
-     110.11,
-     "congestion"
-    ],
-    [
-     80.08,
-     84.084,
-     "solid_line_crossing"
-    ],
-    [
-     92.092,
-     94.094,
+     11.011,
+     21.021,
      "jaywalking"
     ],
     [
-     98.098,
-     102.102,
+     77.578,
+     103.604,
      "stop_line"
     ],
     [
-     100.1,
+     91.091,
      108.108,
      "jaywalking"
     ],
     [
-     114.114,
-     116.116,
+     109.109,
+     120.12,
      "solid_line_crossing"
     ],
     [
-     122.122,
-     124.124,
-     "congestion"
-    ],
-    [
-     128.128,
-     132.132,
+     118.618,
+     155.155,
      "jaywalking"
     ],
     [
-     134.134,
-     158.158,
-     "congestion"
-    ],
-    [
-     146.146,
-     148.148,
+     165.666,
+     200.2,
      "jaywalking"
     ],
     [
-     166.166,
-     184.184,
-     "congestion"
-    ],
-    [
-     168.168,
-     190.19,
+     216.716,
+     222.722,
      "jaywalking"
     ],
     [
-     212.212,
-     220.22,
-     "congestion"
-    ],
-    [
-     216.216,
-     218.218,
-     "jaywalking"
-    ],
-    [
-     222.222,
-     224.224,
-     "jaywalking"
-    ],
-    [
-     228.228,
-     256.256,
-     "congestion"
-    ],
-    [
-     254.254,
+     240.74,
      262.262,
      "jaywalking"
     ],
     [
-     258.258,
-     260.26,
+     259.259,
+     261.261,
      "solid_line_crossing"
     ],
     [
-     272.272,
-     274.274,
-     "congestion"
+     311.311,
+     330.33,
+     "failure_to_yield"
     ],
     [
-     278.278,
-     334.334,
-     "congestion"
-    ],
-    [
-     306.306,
-     310.31,
+     317.317,
+     339.839,
      "solid_line_crossing"
     ],
     [
-     318.318,
-     340.34,
-     "solid_line_crossing"
-    ],
-    [
-     328.328,
+     322.322,
      340.34,
      "jaywalking"
     ]
@@ -135,156 +70,66 @@
    "events": [
     [
      0.0,
-     2.002,
-     "jaywalking"
-    ],
-    [
-     2.002,
-     24.024,
-     "stop_line"
-    ],
-    [
-     2.002,
-     28.028,
-     "congestion"
-    ],
-    [
-     6.006,
-     8.008,
-     "jaywalking"
-    ],
-    [
-     10.01,
-     22.022,
-     "jaywalking"
-    ],
-    [
-     34.034,
-     36.036,
-     "congestion"
-    ],
-    [
-     34.034,
-     42.042,
-     "jaywalking"
-    ],
-    [
-     42.042,
-     98.098,
-     "congestion"
-    ],
-    [
-     46.046,
      64.064,
      "jaywalking"
     ],
     [
-     56.056,
-     60.06,
-     "solid_line_crossing"
+     1.502,
+     21.021,
+     "stop_line"
     ],
     [
-     82.082,
-     84.084,
-     "jaywalking"
-    ],
-    [
-     86.086,
-     92.092,
-     "jaywalking"
-    ],
-    [
-     96.096,
-     98.098,
+     78.078,
+     103.103,
      "jaywalking"
     ],
     [
      114.114,
-     116.116,
+     223.724,
      "jaywalking"
     ],
     [
-     122.122,
-     126.126,
-     "congestion"
+     124.12,
+     128.13,
+     "near_miss"
     ],
     [
      124.124,
-     126.126,
-     "jaywalking"
+     128.629,
+     "solid_line_crossing"
     ],
     [
-     134.134,
-     136.136,
-     "congestion"
+     133.633,
+     178.678,
+     "solid_line_crossing"
     ],
     [
-     138.138,
-     156.156,
-     "jaywalking"
-    ],
-    [
-     142.142,
-     174.174,
-     "congestion"
-    ],
-    [
-     160.16,
-     164.164,
+     179.179,
+     180.18,
      "failure_to_yield"
     ],
     [
-     162.162,
-     168.168,
+     180.18,
+     187.19,
+     "near_miss"
+    ],
+    [
+     231.732,
+     246.246,
      "jaywalking"
     ],
     [
-     172.172,
-     220.22,
+     255.756,
+     273.774,
      "jaywalking"
     ],
     [
-     222.222,
-     224.224,
-     "jaywalking"
+     259.259,
+     260.26,
+     "failure_to_yield"
     ],
     [
-     228.228,
-     248.248,
-     "congestion"
-    ],
-    [
-     248.248,
-     250.25,
-     "jaywalking"
-    ],
-    [
-     258.258,
-     262.262,
-     "congestion"
-    ],
-    [
-     266.266,
-     268.268,
-     "congestion"
-    ],
-    [
-     268.268,
-     270.27,
-     "jaywalking"
-    ],
-    [
-     300.3,
-     304.304,
-     "jaywalking"
-    ],
-    [
-     304.304,
-     317.817,
-     "congestion"
-    ],
-    [
-     316.316,
+     293.793,
      317.817,
      "jaywalking"
     ]
@@ -294,184 +139,69 @@
   "C3902.MP4": {
    "events": [
     [
-     2.002,
-     42.042,
-     "solid_line_crossing"
+     11.011,
+     13.514,
+     "jaywalking"
     ],
     [
-     2.002,
+     21.521,
+     29.529,
+     "jaywalking"
+    ],
+    [
+     32.532,
+     39.54,
+     "failure_to_yield"
+    ],
+    [
      46.046,
-     "congestion"
+     47.047,
+     "failure_to_yield"
     ],
     [
-     14.014,
-     16.016,
+     48.048,
+     57.057,
      "jaywalking"
     ],
     [
-     28.028,
-     30.03,
-     "jaywalking"
-    ],
-    [
-     54.054,
-     56.056,
-     "jaywalking"
-    ],
-    [
-     56.056,
-     58.058,
-     "congestion"
-    ],
-    [
-     64.064,
-     78.078,
-     "congestion"
+     53.053,
+     54.555,
+     "failure_to_yield"
     ],
     [
      66.066,
-     68.068,
+     67.067,
+     "jaywalking"
+    ],
+    [
+     79.579,
+     315.815,
+     "jaywalking"
+    ],
+    [
+     178.68,
+     186.19,
+     "near_miss"
+    ],
+    [
+     254.254,
+     278.779,
+     "stop_line"
+    ],
+    [
+     273.273,
+     286.286,
      "solid_line_crossing"
     ],
     [
-     84.084,
-     124.124,
-     "congestion"
+     285.786,
+     287.287,
+     "failure_to_yield"
     ],
     [
-     90.09,
-     94.094,
-     "jaywalking"
-    ],
-    [
-     98.098,
-     100.1,
-     "jaywalking"
-    ],
-    [
-     104.104,
-     106.106,
-     "jaywalking"
-    ],
-    [
-     108.108,
-     120.12,
-     "jaywalking"
-    ],
-    [
-     122.122,
-     128.128,
-     "jaywalking"
-    ],
-    [
-     142.142,
-     144.144,
-     "congestion"
-    ],
-    [
-     146.146,
-     158.158,
-     "jaywalking"
-    ],
-    [
-     152.152,
-     154.154,
-     "congestion"
-    ],
-    [
-     160.16,
-     162.162,
-     "jaywalking"
-    ],
-    [
-     162.162,
-     166.166,
-     "solid_line_crossing"
-    ],
-    [
-     164.164,
-     228.228,
-     "jaywalking"
-    ],
-    [
-     170.17,
-     200.2,
-     "congestion"
-    ],
-    [
-     198.198,
-     200.2,
-     "solid_line_crossing"
-    ],
-    [
-     204.204,
-     206.206,
-     "solid_line_crossing"
-    ],
-    [
-     206.206,
-     208.208,
-     "congestion"
-    ],
-    [
-     214.214,
-     216.216,
-     "solid_line_crossing"
-    ],
-    [
-     220.22,
-     230.23,
-     "solid_line_crossing"
-    ],
-    [
-     228.228,
-     244.244,
-     "congestion"
-    ],
-    [
-     236.236,
-     304.304,
-     "jaywalking"
-    ],
-    [
-     260.26,
-     262.262,
-     "congestion"
-    ],
-    [
-     266.266,
-     282.282,
-     "congestion"
-    ],
-    [
-     274.274,
-     282.282,
-     "solid_line_crossing"
-    ],
-    [
-     284.284,
-     288.288,
-     "solid_line_crossing"
-    ],
-    [
-     298.298,
-     302.302,
-     "congestion"
-    ],
-    [
-     306.306,
-     308.308,
-     "congestion"
-    ],
-    [
-     306.306,
-     310.31,
-     "jaywalking"
-    ],
-    [
-     316.316,
-     317.817,
-     "congestion"
+     305.305,
+     306.806,
+     "failure_to_yield"
     ]
    ],
    "risk": []
@@ -479,49 +209,34 @@
   "C3905.MP4": {
    "events": [
     [
-     24.024,
-     46.046,
-     "solid_line_crossing"
+     15.015,
+     20.52,
+     "jaywalking"
     ],
     [
-     28.028,
-     38.038,
-     "congestion"
+     39.54,
+     40.541,
+     "failure_to_yield"
     ],
     [
-     52.052,
+     44.044,
      54.054,
-     "congestion"
+     "jaywalking"
     ],
     [
-     56.056,
+     61.061,
      62.062,
-     "solid_line_crossing"
+     "failure_to_yield"
     ],
     [
-     60.06,
-     62.062,
-     "congestion"
-    ],
-    [
-     74.074,
-     118.118,
-     "congestion"
-    ],
-    [
-     92.092,
-     104.104,
+     66.567,
+     126.627,
      "jaywalking"
     ],
     [
-     108.108,
-     112.112,
-     "jaywalking"
-    ],
-    [
-     126.126,
-     127.627,
-     "jaywalking"
+     83.083,
+     84.585,
+     "failure_to_yield"
     ]
    ],
    "risk": []
@@ -530,43 +245,27 @@
  "log": {
   "C3896.MP4": {
    "duration": 340.34,
-   "budget_sec": 1021.0,
-   "errors": [
-    "RiskEstimator raised:\nTraceback (most recent call last):\n  File \"C:\\Users\\yusup\\Documents\\GitHub\\wiut-hackathon-cv-elimination\\traffic-analyzer\\run_submission.py\", line 188, in main\n    curve, timed_out = run_risk(sol.RiskEstimator(), path, meta, max(1, args.risk_stride), deadline)\n                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\yusup\\Documents\\GitHub\\wiut-hackathon-cv-elimination\\traffic-analyzer\\run_submission.py\", line 114, in run_risk\n    estimator.reset({k: meta[k] for k in (\"video_id\", \"fps\", \"width\", \"height\", \"n_frames\")})\n  File \"C:\\Users\\yusup\\Documents\\GitHub\\wiut-hackathon-cv-elimination\\traffic-analyzer\\solution.py\", line 242, in reset\n    raise NotImplementedError(\"Part B risk anticipation is not implemented\")\nNotImplementedError: Part B risk anticipation is not implemented\n"
-   ],
-   "part_a_sec": 554.6,
-   "part_b_sec": 0.5,
-   "total_sec": 555.0
+   "part_a_sec": 999.4,
+   "errors": [],
+   "note": "Part B needs a GPU run (RiskEstimator.reset skips it on CPU)."
   },
   "C3897.MP4": {
    "duration": 317.82,
-   "budget_sec": 953.5,
-   "errors": [
-    "RiskEstimator raised:\nTraceback (most recent call last):\n  File \"C:\\Users\\yusup\\Documents\\GitHub\\wiut-hackathon-cv-elimination\\traffic-analyzer\\run_submission.py\", line 188, in main\n    curve, timed_out = run_risk(sol.RiskEstimator(), path, meta, max(1, args.risk_stride), deadline)\n                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\yusup\\Documents\\GitHub\\wiut-hackathon-cv-elimination\\traffic-analyzer\\run_submission.py\", line 114, in run_risk\n    estimator.reset({k: meta[k] for k in (\"video_id\", \"fps\", \"width\", \"height\", \"n_frames\")})\n  File \"C:\\Users\\yusup\\Documents\\GitHub\\wiut-hackathon-cv-elimination\\traffic-analyzer\\solution.py\", line 242, in reset\n    raise NotImplementedError(\"Part B risk anticipation is not implemented\")\nNotImplementedError: Part B risk anticipation is not implemented\n"
-   ],
-   "part_a_sec": 523.8,
-   "part_b_sec": 0.4,
-   "total_sec": 524.2
+   "part_a_sec": 910.2,
+   "errors": [],
+   "note": "Part B needs a GPU run (RiskEstimator.reset skips it on CPU)."
   },
   "C3902.MP4": {
    "duration": 317.82,
-   "budget_sec": 953.5,
-   "errors": [
-    "RiskEstimator raised:\nTraceback (most recent call last):\n  File \"C:\\Users\\yusup\\Documents\\GitHub\\wiut-hackathon-cv-elimination\\traffic-analyzer\\run_submission.py\", line 188, in main\n    curve, timed_out = run_risk(sol.RiskEstimator(), path, meta, max(1, args.risk_stride), deadline)\n                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\yusup\\Documents\\GitHub\\wiut-hackathon-cv-elimination\\traffic-analyzer\\run_submission.py\", line 114, in run_risk\n    estimator.reset({k: meta[k] for k in (\"video_id\", \"fps\", \"width\", \"height\", \"n_frames\")})\n  File \"C:\\Users\\yusup\\Documents\\GitHub\\wiut-hackathon-cv-elimination\\traffic-analyzer\\solution.py\", line 242, in reset\n    for start, end, label in sorted(events, key=lambda item: (item[2], item[0])):\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nNotImplementedError: Part B risk anticipation is not implemented\n"
-   ],
-   "part_a_sec": 652.8,
-   "part_b_sec": 0.5,
-   "total_sec": 653.3
+   "part_a_sec": 834.3,
+   "errors": [],
+   "note": "Part B needs a GPU run (RiskEstimator.reset skips it on CPU)."
   },
   "C3905.MP4": {
    "duration": 127.63,
-   "budget_sec": 382.9,
-   "errors": [
-    "RiskEstimator raised:\nTraceback (most recent call last):\n  File \"C:\\Users\\yusup\\Documents\\GitHub\\wiut-hackathon-cv-elimination\\traffic-analyzer\\run_submission.py\", line 188, in main\n    curve, timed_out = run_risk(sol.RiskEstimator(), path, meta, max(1, args.risk_stride), deadline)\n                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\yusup\\Documents\\GitHub\\wiut-hackathon-cv-elimination\\traffic-analyzer\\run_submission.py\", line 114, in run_risk\n    estimator.reset({k: meta[k] for k in (\"video_id\", \"fps\", \"width\", \"height\", \"n_frames\")})\n  File \"C:\\Users\\yusup\\Documents\\GitHub\\wiut-hackathon-cv-elimination\\traffic-analyzer\\solution.py\", line 242, in reset\n    for start, end, label in sorted(events, key=lambda item: (item[2], item[0])):\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nNotImplementedError: Part B risk anticipation is not implemented\n"
-   ],
-   "part_a_sec": 243.7,
-   "part_b_sec": 0.8,
-   "total_sec": 244.5
+   "part_a_sec": 328.5,
+   "errors": [],
+   "note": "Part B needs a GPU run (RiskEstimator.reset skips it on CPU)."
   }
  }
 }
