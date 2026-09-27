@@ -120,3 +120,9 @@ accidents). Elimination score = 0.6·M + 0.25·Website + 0.15·Code.
 - For Part B, time-to-collision from tracks is a strong simple signal; calibrate
   so that 0.5 means "probably within 5 s". A flat 1.0 scores ≈ 0.
 - Print your runtime early; sampling every 2nd–5th frame is usually enough.
+
+## Website
+
+The team website (live demo, sample results, EDA, report) lives in `web/`.
+See `web/README.md` for running it, the demo API contract, and how the sample
+data in `web/public/samples/` is generated.
