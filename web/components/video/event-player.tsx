@@ -6,7 +6,9 @@ import { classMeta, classStyle, sortEvents } from '@/lib/events'
 import { formatTimestamp } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import type { RiskPoint, TrafficEvent } from '@/types/events'
+import type { Overlay } from '@/types/job'
 
+import { DetectionOverlay, OverlayControls, type OverlayLayers } from './detection-overlay'
 import { EventTimeline, type TimelineTrack } from './event-timeline'
 
 type EventPlayerProps = {
@@ -17,13 +19,17 @@ type EventPlayerProps = {
 	tracks: TimelineTrack[]
 	risk?: RiskPoint[] | null
 	videoOverlay?: React.ReactNode
+	/** Boxes, event flags, and scene geometry drawn in sync with playback. */
+	overlay?: Overlay | null
 }
 
-export function EventPlayer({ src, poster, duration, tracks, risk, videoOverlay }: EventPlayerProps) {
+export function EventPlayer({ src, poster, duration, tracks, risk, videoOverlay, overlay }: EventPlayerProps) {
 	const videoRef = React.useRef<HTMLVideoElement>(null)
 	const [currentTime, setCurrentTime] = React.useState(0)
 	const [videoDuration, setVideoDuration] = React.useState<number | null>(null)
 	const [listTrack, setListTrack] = React.useState(0)
+	const [videoSize, setVideoSize] = React.useState<{ width: number; height: number } | null>(null)
+	const [layers, setLayers] = React.useState<OverlayLayers>({ scene: true, boxes: true, flaggedOnly: false })
 
 	// timeupdate fires ~4×/s; follow the frame clock while playing so the playhead is smooth.
 	React.useEffect(() => {
@@ -81,6 +87,8 @@ export function EventPlayer({ src, poster, duration, tracks, risk, videoOverlay 
 						onLoadedMetadata={(event) => {
 							const value = event.currentTarget.duration
 							if (Number.isFinite(value) && value > 0) setVideoDuration(value)
+							const { videoWidth, videoHeight } = event.currentTarget
+							if (videoWidth > 0 && videoHeight > 0) setVideoSize({ width: videoWidth, height: videoHeight })
 						}}
 					/>
 				) : (
@@ -88,8 +96,20 @@ export function EventPlayer({ src, poster, duration, tracks, risk, videoOverlay 
 						Video not available
 					</div>
 				)}
+				{overlay && videoSize ? (
+					<DetectionOverlay
+						overlay={overlay}
+						currentTime={currentTime}
+						width={videoSize.width}
+						height={videoSize.height}
+						layers={layers}
+						risk={risk}
+					/>
+				) : null}
 				{videoOverlay}
 			</div>
+
+			{overlay ? <OverlayControls layers={layers} onChange={setLayers} /> : null}
 
 			<EventTimeline
 				tracks={tracks}

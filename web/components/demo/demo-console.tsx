@@ -135,7 +135,7 @@ export function DemoConsole() {
 							{result.events.length} {result.events.length === 1 ? 'event' : 'events'} detected
 						</h2>
 						<p className='text-sm text-muted-foreground'>
-							Click a segment or row to jump the video to its start.
+							Click a segment or row to jump the video to its start. Red boxes are road users involved in an event.
 							{result.risk ? '' : ' No risk curve: Part B is not enabled on this server.'}
 						</p>
 					</div>
@@ -144,6 +144,7 @@ export function DemoConsole() {
 						duration={result.duration_sec}
 						tracks={[{ name: isMockApi ? 'Mock events' : 'Detected events', events: result.events }]}
 						risk={result.risk}
+						overlay={result.overlay}
 					/>
 				</section>
 			) : video && phase === 'idle' ? (
