@@ -17,6 +17,7 @@ except ImportError:
 
 
 VEHICLE_CLASSES = {CAR, BUS, TRUCK, MOTORCYCLE}
+EXCLUDED_ORIGIN_LANES = {"lane_2"}
 
 
 def _tracker_ids(detections):
@@ -51,11 +52,27 @@ def _in_southeast_crosswalk(point, scene):
     return cv2.pointPolygonTest(polygon, tuple(point), False) >= 0
 
 
+def _origin_lane(point, scene):
+    """Return the first lane occupied before a vehicle enters the intersection."""
+    lanes = getattr(scene, "lanes", {})
+    # Shared polygon edges should still count as lane_2, which is excluded.
+    ordered_names = list(EXCLUDED_ORIGIN_LANES) + [
+        name for name in lanes if name not in EXCLUDED_ORIGIN_LANES
+    ]
+    for name in ordered_names:
+        lane = lanes.get(name)
+        if lane is None:
+            continue
+        polygon = np.asarray(lane.polygon, dtype=np.float32)
+        if cv2.pointPolygonTest(polygon, tuple(point), False) >= 0:
+            return name
+    return None
+
 
 def evaluate_illegal_turn_spatial(detections, scene, turn_states, t_sec):
-    """Return vehicles that enter, leave, and then cross the southeast crosswalk.
+    """Return northeast approach vehicles crossing the southeast crosswalk after the intersection.
 
-    Crossing the crosswalk without first entering the intersection is safe.
+    The origin must be observed in a lane other than lane_2 before intersection entry.
     """
     event_mask = np.zeros(len(detections), dtype=bool)
     if len(detections) == 0:
@@ -79,17 +96,22 @@ def evaluate_illegal_turn_spatial(detections, scene, turn_states, t_sec):
         current_center = _center(boxes[index])
         state = turn_states.get(key)
         if state is None:
+            in_intersection = _in_intersection(current_center, scene)
             turn_states[key] = {
                 "previous_center": current_center,
-                "in_intersection": _in_intersection(current_center, scene),
-                "entered_intersection": _in_intersection(current_center, scene),
+                "in_intersection": in_intersection,
+                "entered_intersection": in_intersection,
                 "left_intersection": False,
                 "illegal": False,
+                "origin_lane": None if in_intersection else _origin_lane(current_center, scene),
                 "start_sec": float(t_sec),
             }
             continue
 
         in_intersection = _in_intersection(current_center, scene)
+        if (not in_intersection and not state["entered_intersection"]
+                and state["origin_lane"] is None):
+            state["origin_lane"] = _origin_lane(current_center, scene)
         in_southeast_crosswalk = _in_southeast_crosswalk(current_center, scene)
         previously_in_intersection = state["in_intersection"]
         state["in_intersection"] = in_intersection
@@ -101,7 +123,9 @@ def evaluate_illegal_turn_spatial(detections, scene, turn_states, t_sec):
         elif previously_in_intersection and state["entered_intersection"]:
             state["left_intersection"] = True
 
-        if state["left_intersection"] and in_southeast_crosswalk:
+        if (state["left_intersection"] and in_southeast_crosswalk
+                and state["origin_lane"] is not None
+                and state["origin_lane"] not in EXCLUDED_ORIGIN_LANES):
             state["illegal"] = True
 
         event_mask[index] = bool(state["illegal"] and in_southeast_crosswalk)

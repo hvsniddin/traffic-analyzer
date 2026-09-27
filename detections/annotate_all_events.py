@@ -1,19 +1,25 @@
 """Run solution.detect_events and annotate the responsible objects and areas.
 
-Usage: python annotate_events.py input.mp4 output.mp4
+Usage: python detections/annotate_all_events.py input.mp4 output.mp4
 """
 
 from __future__ import annotations
 
 import argparse
 import heapq
+import sys
 from pathlib import Path
 
 import cv2
 import numpy as np
 from tqdm import tqdm
 
-from solution import detect_events
+# Direct execution adds detections/ to sys.path, but solution.py is one level up.
+project_root = Path(__file__).resolve().parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
+from solution import _detect_events
 
 
 def annotate_video(video_path: str, output_path: str) -> list[list]:
@@ -22,39 +28,44 @@ def annotate_video(video_path: str, output_path: str) -> list[list]:
     if source == target:
         raise ValueError("Output video must differ from input video")
 
+    # Keep only drawing metadata from the detection pass, not decoded frames.
+    samples: dict[int, tuple[list[tuple[np.ndarray, set[str]]], list[np.ndarray]]] = {}
+
+    def save_sample(frame_index, detections, ids, masks, congested, congested_zones, scene):
+        marked_boxes: dict[int, tuple[np.ndarray, set[str]]] = {}
+        for label, mask in masks.items():
+            for index in np.flatnonzero(mask):
+                track_id = int(ids[index])
+                if track_id < 0:
+                    continue
+                if track_id not in marked_boxes:
+                    marked_boxes[track_id] = (detections.xyxy[index].copy(), set())
+                marked_boxes[track_id][1].add(label)
+
+        marked_zones = []
+        if congested:
+            for kind, name in congested_zones:
+                zone = (scene.lanes if kind == "lane" else scene.intersections).get(name)
+                if zone is not None:
+                    marked_zones.append(np.asarray(zone.polygon, dtype=np.int32))
+            if not marked_zones and scene.road_zone is not None:
+                marked_zones.append(np.asarray(scene.road_zone.polygon, dtype=np.int32))
+        if marked_boxes or marked_zones:
+            samples[frame_index] = (list(marked_boxes.values()), marked_zones)
+
     print("Detecting events...", flush=True)
-    events = sorted(detect_events(str(source)), key=lambda event: event[0])
+    events = sorted(_detect_events(str(source), on_sample=save_sample), key=lambda event: event[0])
     capture = cv2.VideoCapture(str(source))
     if not capture.isOpened():
         raise RuntimeError(f"Cannot open video: {source}")
 
     fps = capture.get(cv2.CAP_PROP_FPS)
-    if fps <= 0:
+    if not np.isfinite(fps) or fps <= 0:
         fps = 25.0
     width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
     frame_count = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
     stride = max(1, round(fps / 4.0))
-
-    import supervision as sv
-    from ultralytics import YOLO
-
-    from detections.scene import SceneGeometry
-    from detections.classes import PERSON
-    from detections.traffic_light_events import evaluate_traffic_light_events
-    from detections.jaywalking import evaluate_jaywalking_spatial
-    from detections.failure_to_yield import evaluate_failure_to_yield_spatial
-    from detections.solid_line import evaluate_solid_line_crossing_spatial
-    from detections.illegal_turn import evaluate_illegal_turn_spatial
-    from detections.congestion import evaluate_congestion_spatial
-
-    root = Path(__file__).resolve().parent
-    scene = SceneGeometry(str(root / "scene.json"), width, height, video_path=str(source))
-    model = YOLO(str(root / "weights" / "best.pt"))
-    histories = {
-        "traffic_light": {}, "failure_to_yield": {},
-        "solid_line_crossing": {}, "illegal_turn": {}, "congestion": {},
-    }
     target.parent.mkdir(parents=True, exist_ok=True)
     writer = cv2.VideoWriter(
         str(target), cv2.VideoWriter_fourcc(*"mp4v"), fps, (width, height)
@@ -70,7 +81,7 @@ def annotate_video(video_path: str, output_path: str) -> list[list]:
     scale = max(0.65, min(width / 1280, 1.4))
     row_height = max(30, round(34 * scale))
     margin = max(12, round(20 * scale))
-    marked_boxes: dict[int, tuple[np.ndarray, set[str]]] = {}
+    marked_boxes: list[tuple[np.ndarray, set[str]]] = []
     marked_zones: list[np.ndarray] = []
     try:
         with tqdm(total=frame_count or None, desc="Annotating", unit="frame") as progress:
@@ -92,59 +103,7 @@ def annotate_video(video_path: str, output_path: str) -> list[list]:
 
                 active_labels = {event[2] for event in active.values()}
                 if (frame_index - 1) % stride == 0:
-                    result = model.track(
-                        frame, persist=True, tracker="bytetrack.yaml", conf=0.3,
-                        imgsz=640, verbose=False,
-                    )[0]
-                    detections = sv.Detections.from_ultralytics(result)
-                    ids = detections.tracker_id
-                    if ids is None:
-                        ids = np.full(len(detections), -1, dtype=int)
-
-                    red_mask, stop_mask = evaluate_traffic_light_events(
-                        detections, scene, histories["traffic_light"], t_sec
-                    )
-                    masks = {
-                        "red_light": red_mask,
-                        "stop_line": stop_mask,
-                        "failure_to_yield": evaluate_failure_to_yield_spatial(
-                            detections, scene, histories["failure_to_yield"], t_sec
-                        ),
-                        "solid_line_crossing": evaluate_solid_line_crossing_spatial(
-                            detections, scene, histories["solid_line_crossing"]
-                        ),
-                        "illegal_turn": evaluate_illegal_turn_spatial(
-                            detections, scene, histories["illegal_turn"], t_sec
-                        ),
-                    }
-                    people_indices = np.flatnonzero(detections.class_id == PERSON)
-                    people = detections[detections.class_id == PERSON]
-                    masks["jaywalking"] = np.zeros(len(detections), dtype=bool)
-                    masks["jaywalking"][people_indices] = evaluate_jaywalking_spatial(
-                        people, scene
-                    )[0]
-                    congested, _, congested_zones = evaluate_congestion_spatial(
-                        detections, scene, histories["congestion"], t_sec
-                    )
-
-                    marked_boxes = {}
-                    for label, mask in masks.items():
-                        for index in np.flatnonzero(mask):
-                            track_id = int(ids[index])
-                            if track_id < 0:
-                                continue
-                            if track_id not in marked_boxes:
-                                marked_boxes[track_id] = (detections.xyxy[index], set())
-                            marked_boxes[track_id][1].add(label)
-
-                    marked_zones = []
-                    if congested:
-                        for kind, name in congested_zones:
-                            zone = (scene.lanes if kind == "lane" else scene.intersections).get(name)
-                            if zone is not None:
-                                marked_zones.append(np.asarray(zone.polygon, dtype=np.int32))
-                        if not marked_zones and scene.road_zone is not None:
-                            marked_zones.append(np.asarray(scene.road_zone.polygon, dtype=np.int32))
+                    marked_boxes, marked_zones = samples.pop(frame_index - 1, ([], []))
 
                 if "congestion" in active_labels and marked_zones:
                     overlay = frame.copy()
@@ -158,7 +117,7 @@ def annotate_video(video_path: str, output_path: str) -> list[list]:
                             cv2.FONT_HERSHEY_SIMPLEX, scale, (0, 0, 255), 3, cv2.LINE_AA,
                         )
 
-                for box, event_labels in marked_boxes.values():
+                for box, event_labels in marked_boxes:
                     visible = sorted(event_labels & active_labels)
                     if not visible:
                         continue
@@ -185,9 +144,10 @@ def annotate_video(video_path: str, output_path: str) -> list[list]:
                 lines = [f"TIME  {t_sec:.1f}s", *(labels or ["NO EVENT"])]
                 panel_width = min(width, max(260, round(450 * scale)))
                 panel_height = min(height, margin * 2 + row_height * len(lines))
-                overlay = frame.copy()
-                cv2.rectangle(overlay, (0, 0), (panel_width, panel_height), (20, 20, 20), -1)
-                cv2.addWeighted(overlay, 0.65, frame, 0.35, 0, frame)
+                panel = frame[:panel_height, :panel_width]
+                overlay = np.empty_like(panel)
+                overlay[:] = (20, 20, 20)
+                cv2.addWeighted(overlay, 0.65, panel, 0.35, 0, panel)
                 for row, line in enumerate(lines):
                     y = margin + row_height * (row + 1) - 8
                     color = (230, 230, 230) if row == 0 or not labels else (60, 190, 255)

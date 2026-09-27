@@ -14,6 +14,8 @@ do not add new ids.
 """
 from __future__ import annotations
 
+from typing import Callable
+
 import numpy as np
 
 # Official class ids (14). See the task description for definitions and
@@ -64,6 +66,14 @@ def detect_events(video_path: str) -> list[list]:
         5. optionally re-score `accident` / `near_miss` candidates with a
            learned clip classifier.
     """
+    return _detect_events(video_path)
+
+
+def _detect_events(
+    video_path: str,
+    on_sample: Callable | None = None,
+) -> list[list]:
+    """Run detection, optionally exposing each sampled frame to the annotator."""
     from pathlib import Path
 
     import cv2
@@ -78,6 +88,7 @@ def detect_events(video_path: str) -> list[list]:
     from detections.solid_line import evaluate_solid_line_crossing_spatial
     from detections.illegal_turn import evaluate_illegal_turn_spatial
     from detections.congestion import evaluate_congestion_spatial
+    from detections.near_miss import NearMissDetector, evaluate_near_miss_spatial
 
     root = Path(__file__).resolve().parent
     capture = cv2.VideoCapture(video_path)
@@ -100,6 +111,7 @@ def detect_events(video_path: str) -> list[list]:
             "traffic_light": {}, "failure_to_yield": {},
             "solid_line_crossing": {}, "illegal_turn": {}, "congestion": {},
         }
+        near_miss = NearMissDetector()
         active: dict[tuple[str, int], tuple[float, float]] = {}
         events: list[list] = []
         frame_index = 0
@@ -156,15 +168,29 @@ def detect_events(video_path: str) -> list[list]:
             masks["illegal_turn"] = evaluate_illegal_turn_spatial(
                 detections, scene, histories["illegal_turn"], t_sec
             )
-            congested = evaluate_congestion_spatial(
+            masks["near_miss"], completed_near_misses = evaluate_near_miss_spatial(
+                detections, near_miss, t_sec
+            )
+            events.extend(completed_near_misses)
+            congested, _, congested_zones = evaluate_congestion_spatial(
                 detections, scene, histories["congestion"], t_sec
-            )[0]
+            )
+            if on_sample is not None:
+                jaywalking_mask = np.zeros(len(detections), dtype=bool)
+                jaywalking_mask[np.flatnonzero(detections.class_id == PERSON)] = jaywalkers
+                on_sample(
+                    frame_index - 1, detections, ids,
+                    {**masks, "jaywalking": jaywalking_mask},
+                    congested, congested_zones, scene,
+                )
             if congested:
                 key = ("congestion", 0)
                 start = active.get(key, (t_sec, t_sec))[0]
                 active[key] = (start, t_sec)
 
             for label, mask in masks.items():
+                if label == "near_miss":
+                    continue
                 for track_id in ids[np.asarray(mask, dtype=bool)]:
                     if track_id < 0:
                         continue
@@ -180,13 +206,14 @@ def detect_events(video_path: str) -> list[list]:
             close_expired(t_sec)
 
         close_expired(min(duration, last_time + sample_period), force=True)
+        events.extend(near_miss.finish(min(duration, last_time + sample_period)))
     finally:
         capture.release()
 
     # Merge nearby detections of the same class, including adjacent tracks.
     merged = []
     for start, end, label in sorted(events, key=lambda item: (item[2], item[0])):
-        if merged and merged[-1][2] == label and start - merged[-1][1] < 1.0:
+        if merged and merged[-1][2] == label and start - merged[-1][1] < 1.5:
             merged[-1][1] = max(merged[-1][1], end)
         else:
             merged.append([start, end, label])

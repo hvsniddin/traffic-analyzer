@@ -1,0 +1,109 @@
+{
+ "team": "Lorem Ipsum",
+ "videos": {
+  "C3905.MP4": {
+   "events": [
+    [
+     3.036,
+     4.905,
+     "jaywalking"
+    ],
+    [
+     7.941,
+     8.642,
+     "jaywalking"
+    ],
+    [
+     12.379,
+     25.225,
+     "jaywalking"
+    ],
+    [
+     26.627,
+     68.669,
+     "solid_line_crossing"
+    ],
+    [
+     26.86,
+     27.561,
+     "jaywalking"
+    ],
+    [
+     33.867,
+     34.568,
+     "jaywalking"
+    ],
+    [
+     33.867,
+     35.269,
+     "congestion"
+    ],
+    [
+     39.473,
+     40.407,
+     "failure_to_yield"
+    ],
+    [
+     43.443,
+     44.611,
+     "jaywalking"
+    ],
+    [
+     47.414,
+     55.122,
+     "jaywalking"
+    ],
+    [
+     60.494,
+     61.662,
+     "failure_to_yield"
+    ],
+    [
+     64.932,
+     114.214,
+     "jaywalking"
+    ],
+    [
+     70.537,
+     113.981,
+     "congestion"
+    ],
+    [
+     81.982,
+     84.551,
+     "failure_to_yield"
+    ],
+    [
+     98.565,
+     127.627,
+     "solid_line_crossing"
+    ],
+    [
+     117.25,
+     117.951,
+     "jaywalking"
+    ],
+    [
+     121.688,
+     127.627,
+     "jaywalking"
+    ],
+    [
+     122.389,
+     123.09,
+     "failure_to_yield"
+    ]
+   ],
+   "risk": []
+  }
+ },
+ "log": {
+  "C3905.MP4": {
+   "duration": 127.63,
+   "budget_sec": 382.9,
+   "errors": [],
+   "part_a_sec": 159.9,
+   "total_sec": 159.9
+  }
+ }
+}
