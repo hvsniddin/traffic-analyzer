@@ -17,7 +17,7 @@ from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
 from detections.overlay import OverlayRecorder
-from solution import _detect_events
+from solution import SUPPRESSED_CLASSES, _detect_events
 
 
 MAX_BYTES = int(os.getenv("WIUT_MAX_UPLOAD_MB", "200")) * 1024 * 1024
@@ -49,6 +49,7 @@ def _run(job_id: str, path: Path, duration: float, fps: float, frames: float,
     recorder = OverlayRecorder(
         fps, width, height,
         on_progress=lambda index: _set(job_id, progress=min(0.99, index / frames)) if frames > 0 else None,
+        hidden_labels=SUPPRESSED_CLASSES,
     )
 
     try:

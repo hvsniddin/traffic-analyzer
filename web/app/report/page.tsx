@@ -20,8 +20,9 @@ export default function ReportPage() {
 				<p>
 					A detector-tracker-rules pipeline behind the official <code>solution.detect_events</code> interface. A
 					fine-tuned YOLO finds road users and signal heads, ByteTrack links them into tracks, and a scene map of the
-					junction is aligned to each clip with a SIFT homography. Seven per-class rule modules turn tracks and zones
-					into time segments. The same entry point backs the live demo. See the <Link href='/approach/'>approach</Link>{' '}
+					junction is aligned to each clip with a SIFT homography. Ten per-class rule modules turn tracks and zones
+					into time segments. A separate time-to-collision model scores accident risk for Part B.
+					The same entry point backs the live demo. See the <Link href='/approach/'>approach</Link>{' '}
 					for the diagram and every rule.
 				</p>
 
@@ -46,9 +47,12 @@ export default function ReportPage() {
 				<h2>What did not work, or not yet</h2>
 				<ul>
 					<li>
-						<strong>Seven classes have no detector:</strong> accident, near_miss, wrong_way, illegal_u_turn,
-						stopped_vehicle, road_obstacle and fire_smoke. Part B (accident anticipation) is not implemented, so its
-						score is 0.
+						<strong>Four classes have no detector:</strong> accident, illegal_u_turn, road_obstacle and fire_smoke.
+					</li>
+					<li>
+						<strong>Part B is uncalibrated.</strong> The sample clips contain no accidents, so the risk thresholds only
+						keep false alarms rare on normal traffic. Part B also skips itself when there is no GPU or the time budget
+						is too tight.
 					</li>
 					<li>
 						<strong>Our dev set is small.</strong> We manually labelled all four provided clips and merged overlapping
@@ -76,12 +80,8 @@ export default function ReportPage() {
 				<ol>
 					<li>Have a second reviewer audit the four labelled clips, then tune thresholds against F1 at IoU 0.7.</li>
 					<li>
-						wrong_way and stopped_vehicle next: both are direct rules on existing tracks plus the lane directions we
-						already measured with optical flow.
-					</li>
-					<li>
-						Part B with time-to-collision between track pairs, calibrated so 0.5 means &ldquo;probably within 5
-						s&rdquo;. This also gives near_miss candidates.
+						Calibrate Part B on real collision footage so 0.5 means &ldquo;probably within 5 s&rdquo;, and turn its
+						high-risk pairs with box contact into accident events.
 					</li>
 					<li>Decode on the GPU (NVDEC) and batch the detector to widen the time margin.</li>
 				</ol>

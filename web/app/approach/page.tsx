@@ -115,15 +115,37 @@ export default function ApproachPage() {
 			</section>
 
 			<section className='mt-14 grid gap-2'>
+				<SectionTitle title='Part B: accident anticipation'>
+					<code className='font-mono'>RiskEstimator</code> runs the same detector with its own tracker at 5 FPS and only
+					sees frames up to the current one. Every pair of road users that includes a vehicle is projected forward at
+					constant velocity. A pair adds risk when it closes faster than 2 box widths per second on crossing (not
+					parallel) headings, and its closest approach is within 0.3 of the larger box width and under 5 s away. Risk
+					grows as that time and distance shrink, and a hard brake or swerve adds 0.25. The frame score is the worst
+					pair, averaged over the last second so a single tracker glitch cannot cross 0.5.
+				</SectionTitle>
+				<ul className='grid list-disc gap-1.5 ps-5 text-sm text-muted-foreground'>
+					<li>
+						The sample clips contain no accidents, so thresholds were set to keep false alarms rare on normal traffic,
+						not calibrated against real crashes.
+					</li>
+					<li>
+						Part B only runs when Part A&apos;s measured decode and inference speed show that the harness&apos;s full
+						decode still fits the 3× time budget on a GPU. Otherwise it steps aside and Part A&apos;s events are kept.
+					</li>
+				</ul>
+			</section>
+
+			<section className='mt-14 grid gap-2'>
 				<SectionTitle title='Scene map'>
-					Polygons and lines in normalised coordinates, drawn once on C3897 at 287 s and stored in{' '}
-					<code className='font-mono'>scene.json</code>: carriageway, lanes with travel direction, crossings, refuge
-					island, kerb waiting zones, stop lines and solid markings.
+					Polygons and lines in normalised coordinates, drawn once on a 1280×720 reference frame from C3897 (
+					<code className='font-mono'>scene_reference.jpg</code>) and stored in <code className='font-mono'>scene.json</code>:
+					carriageway, lanes with travel direction, junction area, crossings, refuge islands, kerb waiting zones, stop
+					lines and solid markings.
 				</SectionTitle>
 				<figure className='grid gap-2'>
 					{/* eslint-disable-next-line @next/next/no-img-element -- static export */}
 					<img src='/eda/scene_layout.jpg' alt='Scene map overlaid on the camera view' className='w-full rounded-xl border' />
-					<figcaption className='text-xs text-muted-foreground'>Scene map drawn over the reference frame.</figcaption>
+					<figcaption className='text-xs text-muted-foreground'>Scene map drawn over the reference frame. Arrows mark each lane&apos;s travel direction.</figcaption>
 				</figure>
 			</section>
 		</>

@@ -39,11 +39,14 @@ def scene_shapes(scene, width: int, height: int) -> list[dict]:
 
 
 class OverlayRecorder:
-    def __init__(self, fps: float, width: int, height: int, on_progress=None):
+    def __init__(self, fps: float, width: int, height: int, on_progress=None,
+                 hidden_labels=frozenset()):
         self.fps = fps
         self.width = width
         self.height = height
         self.on_progress = on_progress
+        # Classes the pipeline computes but does not report are not drawn either.
+        self.hidden_labels = set(hidden_labels)
         self.scene: list[dict] = []
         self.frames: list[dict] = []
         self.risk: list[list[float]] = []
@@ -57,7 +60,8 @@ class OverlayRecorder:
         self.risk.append([round(t_sec, 3), round(self._risk_model.update(detections, t_sec), 4)])
         objects = []
         for index, box in enumerate(np.asarray(detections.xyxy, dtype=float) / self._size):
-            labels = [label for label, mask in masks.items() if len(mask) and mask[index]]
+            labels = [label for label, mask in masks.items()
+                      if label not in self.hidden_labels and len(mask) and mask[index]]
             objects.append([*box.round(4).tolist(), int(detections.class_id[index]), int(ids[index]), labels])
         self.frames.append({"t": round(t_sec, 3), "objects": objects})
         if self.on_progress is not None:

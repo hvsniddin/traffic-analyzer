@@ -29,7 +29,12 @@ export function EventPlayer({ src, poster, duration, tracks, risk, videoOverlay,
 	const [videoDuration, setVideoDuration] = React.useState<number | null>(null)
 	const [listTrack, setListTrack] = React.useState(0)
 	const [videoSize, setVideoSize] = React.useState<{ width: number; height: number } | null>(null)
-	const [layers, setLayers] = React.useState<OverlayLayers>({ scene: true, boxes: true, flaggedOnly: false })
+	const [layers, setLayers] = React.useState<OverlayLayers>({
+		visible: true,
+		scene: true,
+		boxes: true,
+		flaggedOnly: false,
+	})
 
 	// timeupdate fires ~4×/s; follow the frame clock while playing so the playhead is smooth.
 	React.useEffect(() => {

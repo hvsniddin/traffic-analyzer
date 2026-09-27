@@ -5,6 +5,9 @@ which is deterministic, so a harness run reproduces it) and, per video,
 web/public/samples/<id>/overlay.json with boxes, event flags, scene geometry,
 and the causal risk curve from the same tracks.
 
+The harness's wall-clock guard is disabled here: on a slow CPU it would cut
+the run short, while the organizers' GPU run finishes every video.
+
     python scripts/export_samples.py --videos /path/to/sample-videos
 """
 from __future__ import annotations
@@ -20,7 +23,7 @@ sys.path.insert(0, str(root))
 
 from detections.overlay import OverlayRecorder  # noqa: E402
 from run_submission import clean_events, video_meta  # noqa: E402
-from solution import CLASSES, _detect_events  # noqa: E402
+from solution import CLASSES, SUPPRESSED_CLASSES, _detect_events  # noqa: E402
 
 
 def main() -> int:
@@ -35,10 +38,11 @@ def main() -> int:
     result = {"team": args.team, "videos": {}, "log": {}}
     for path in videos:
         meta = video_meta(path)
-        recorder = OverlayRecorder(meta["fps"], meta["width"], meta["height"])
+        recorder = OverlayRecorder(meta["fps"], meta["width"], meta["height"],
+                                   hidden_labels=SUPPRESSED_CLASSES)
         started = time.perf_counter()
         events, problems = clean_events(
-            _detect_events(str(path), on_sample=recorder), CLASSES, meta["duration"])
+            _detect_events(str(path), on_sample=recorder, time_budget_factor=float("inf")), CLASSES, meta["duration"])
         seconds = round(time.perf_counter() - started, 1)
         result["videos"][path.name] = {"events": events, "risk": []}
         result["log"][path.name] = {

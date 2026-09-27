@@ -3,6 +3,7 @@
 import * as React from 'react'
 
 import { classMeta } from '@/lib/events'
+import { cn } from '@/lib/utils'
 import type { EventClass, RiskPoint } from '@/types/events'
 import type { Overlay } from '@/types/job'
 
@@ -21,7 +22,7 @@ const SCENE_COLORS: Record<string, string> = {
 	solid_line: '#fb923c',
 }
 
-export type OverlayLayers = { scene: boolean; boxes: boolean; flaggedOnly: boolean }
+export type OverlayLayers = { visible: boolean; scene: boolean; boxes: boolean; flaggedOnly: boolean }
 
 /** Index of the last element with t <= time, or -1. */
 function lastAtOrBefore<T>(items: T[], time: number, at: (item: T) => number) {
@@ -48,6 +49,7 @@ type DetectionOverlayProps = {
 }
 
 export function DetectionOverlay({ overlay, currentTime, width, height, layers, risk }: DetectionOverlayProps) {
+	if (!layers.visible) return null
 	const frames = overlay.frames
 	const index = lastAtOrBefore(frames, currentTime, (frame) => frame.t)
 	// Hold a sample until the next one; hide boxes if the gap is unusually long.
@@ -150,13 +152,27 @@ export function OverlayControls({
 		['scene', 'Scene geometry'],
 	]
 	return (
-		<div className='flex flex-wrap gap-x-4 gap-y-2 text-sm'>
+		<div className='flex flex-wrap items-center gap-x-4 gap-y-2 text-sm'>
+			<label className='flex cursor-pointer items-center gap-2 font-medium'>
+				<input
+					type='checkbox'
+					role='switch'
+					className='size-4 accent-current'
+					checked={layers.visible}
+					onChange={(event) => onChange({ ...layers, visible: event.target.checked })}
+				/>
+				Show annotations
+			</label>
 			{options.map(([key, label]) => (
-				<label key={key} className='flex cursor-pointer items-center gap-2'>
+				<label
+					key={key}
+					className={cn('flex items-center gap-2', layers.visible ? 'cursor-pointer' : 'cursor-not-allowed opacity-50')}
+				>
 					<input
 						type='checkbox'
 						className='size-4 accent-current'
 						checked={layers[key]}
+						disabled={!layers.visible}
 						onChange={(event) => onChange({ ...layers, [key]: event.target.checked })}
 					/>
 					{label}

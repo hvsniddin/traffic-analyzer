@@ -31,7 +31,7 @@ export default async function HomePage() {
 				</h1>
 				<p className='max-w-2xl text-lg text-muted-foreground'>
 					We detect and track every road user, align a hand-drawn map of the junction to each clip, and turn trajectories
-					into events such as jaywalking, red-light running and congestion.
+					into events such as jaywalking, red-light running and near misses.
 				</p>
 				<div className='flex flex-wrap gap-3'>
 					<Link href='/demo/' className={buttonClass()}>
