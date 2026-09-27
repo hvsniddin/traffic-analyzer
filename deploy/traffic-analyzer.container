@@ -1,0 +1,18 @@
+# Podman Quadlet unit: installed to ~/.config/containers/systemd/ by deploy.sh.
+[Unit]
+Description=Traffic Analyzer inference API
+After=network-online.target
+
+[Container]
+Image=localhost/traffic-analyzer:latest
+ContainerName=traffic-analyzer
+PublishPort=127.0.0.1:8000:8000
+EnvironmentFile=%h/.config/traffic-analyzer/api.env
+Volume=traffic-analyzer-uploads:/uploads
+
+[Service]
+Restart=always
+TimeoutStartSec=300
+
+[Install]
+WantedBy=default.target

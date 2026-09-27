@@ -17,6 +17,8 @@ for video, entry in ground_truth.items():
         "note": "Team-reviewed event intervals; overlapping same-class intervals merged for evaluation.",
         "events": entry["events"],
     }
+    if sample.get("eda") and sample["eda"].get("detector"):
+        sample["eda"]["detector"]["weights"] = "best.pt"
     if video in predictions:
         result = predictions[video]
         risk = result.get("risk") or []
