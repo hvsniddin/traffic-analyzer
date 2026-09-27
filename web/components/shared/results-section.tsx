@@ -94,6 +94,19 @@ export function ResultsSection() {
 				between pedestrian classes, since failure_to_yield and near_miss fire while someone is labelled as jaywalking.
 			</p>
 			<Table head={['Predicted class', 'What it overlaps', 'Count']} rows={falsePositives.map((row) => [...row])} />
+			<p>
+				<strong>Why the model reports 44 events against 80 labels.</strong> Label merging is not the cause: merging
+				overlapping same-class labels only took our 84 raw labels to 80. Most of the gap is failure_to_yield, where the
+				model finds 11 events against 27 labelled and covers 37 s of the 221 s we labelled. Jaywalking is seen about as
+				much (731 s predicted, 685 s labelled) but in fewer, longer segments (median 18 s against 8.5 s), because the
+				8 s merge gap joins nearby pedestrians. Four labelled classes are never predicted, and the 1 s minimum drops 16
+				short segments.
+			</p>
+			<p>
+				Our labels start and end on whole seconds, so each boundary can be up to 0.5 s off while predictions are
+				frame-exact. For short events such as a 2 s failure_to_yield, rounding alone can push a correct prediction
+				below IoU 0.7. Per-clip mismatches are listed under <em>Failure cases</em> on each sample page.
+			</p>
 		</>
 	)
 }
