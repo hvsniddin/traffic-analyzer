@@ -53,26 +53,21 @@ def _box_corners(boxes):
 
 
 def _side(line_start, line_end, points):
-    return np.cross(line_end - line_start, points - line_start)
+    direction = line_end - line_start
+    offset = points - line_start
+    return direction[0] * offset[..., 1] - direction[1] * offset[..., 0]
 
 
-def _segments_crossed(old_points, new_points, line_start, line_end):
-    old_side = _side(line_start, line_end, old_points)
-    new_side = _side(line_start, line_end, new_points)
-    for old_point, new_point, did_cross in zip(
-        old_points, new_points, old_side * new_side <= 0
-    ):
-        if not did_cross:
-            continue
-        movement = new_point - old_point
-        denominator = np.cross(movement, line_end - line_start)
-        if abs(float(denominator)) < 1e-9:
-            continue
-        movement_ratio = np.cross(line_start - old_point, line_end - line_start) / denominator
-        line_ratio = np.cross(line_start - old_point, movement) / denominator
-        if 0.0 <= movement_ratio <= 1.0 and 0.0 <= line_ratio <= 1.0:
-            return True
-    return False
+def _segment_crosses_line(old_point, new_point, line_start, line_end):
+    movement = new_point - old_point
+    direction = line_end - line_start
+    offset = line_start - old_point
+    denominator = movement[0] * direction[1] - movement[1] * direction[0]
+    if abs(float(denominator)) < 1e-9:
+        return False
+    movement_ratio = (offset[0] * direction[1] - offset[1] * direction[0]) / denominator
+    line_ratio = (offset[0] * movement[1] - offset[1] * movement[0]) / denominator
+    return 0.0 <= movement_ratio <= 1.0 and 0.0 <= line_ratio <= 1.0
 
 
 def _inside_lane(corners, lane):
@@ -101,7 +96,9 @@ def evaluate_solid_line_crossing_spatial(detections, scene, crossing_states):
     tracker_ids = getattr(detections, "tracker_id", None)
     tracker_ids = np.arange(len(detections)) if tracker_ids is None else np.asarray(tracker_ids)
     corners = _box_corners(np.asarray(detections.xyxy, dtype=float))
-    previous = crossing_states.setdefault("previous_corners", {})
+    # Keep the last position clearly on either side of each line. A midpoint
+    # close to a marking is ignored until it clears the marking again.
+    previous = crossing_states.setdefault("clear_positions", {})
     active = crossing_states.setdefault("active", {})
     visible_ids = set()
 
@@ -111,23 +108,34 @@ def evaluate_solid_line_crossing_spatial(detections, scene, crossing_states):
         key = int(tracker_id)
         visible_ids.add(key)
         current_corners = corners[index]
-        old_corners = previous.get(key)
-        if old_corners is not None and key not in active:
-            for line_name, line in getattr(scene, "solid_lines", {}).items():
-                endpoints = _line_endpoints(line)
-                if endpoints is None:
-                    continue
-                line_start, line_end = endpoints
-                if not _segments_crossed(old_corners[2:], current_corners[2:], line_start, line_end):
-                    continue
-                source_lane = next(
-                    (name for name, lane in getattr(scene, "lanes", {}).items() if _inside_lane(old_corners, lane)),
-                    None,
-                )
-                active[key] = {"source_lane": source_lane}
-                break
+        midpoint = current_corners[2:].mean(axis=0)
+        clear_positions = previous.setdefault(key, {})
+        for line_name, line in getattr(scene, "solid_lines", {}).items():
+            endpoints = _line_endpoints(line)
+            if endpoints is None:
+                continue
+            line_start, line_end = endpoints
+            line_length = np.linalg.norm(line_end - line_start)
+            if line_length == 0:
+                continue
+            side = float(_side(line_start, line_end, midpoint) / line_length)
+            clearance = 0.05 * (current_corners[2, 0] - current_corners[3, 0])
+            if abs(side) < clearance:
+                continue
+            old = clear_positions.get(line_name)
+            if old is not None and key not in active:
+                old_point, old_corners, old_side = old
+                if side * old_side < 0 and _segment_crosses_line(
+                    old_point, midpoint, line_start, line_end
+                ):
+                    source_lane = next(
+                        (name for name, lane in getattr(scene, "lanes", {}).items()
+                         if _inside_lane(old_corners, lane)),
+                        None,
+                    )
+                    active[key] = {"source_lane": source_lane}
+            clear_positions[line_name] = (midpoint, current_corners, side)
 
-        previous[key] = current_corners
         state = active.get(key)
         if state is None:
             continue

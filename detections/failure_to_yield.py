@@ -15,6 +15,7 @@ except ImportError:
 
 
 VEHICLE_CLASSES = {CAR, BUS, TRUCK, MOTORCYCLE}
+MIN_HEADING_MOVEMENT_PX = 2.0
 
 
 def _bottom_centers(detections):
@@ -41,8 +42,25 @@ def _in_any_crosswalk(detections, scene):
     return mask
 
 
+def _pedestrian_in_vehicle_path(vehicle_box, vehicle_point, heading, pedestrian_box,
+                                pedestrian_point):
+    """Whether a pedestrian's feet occupy the road ahead of this vehicle.
+
+    Box dimensions give a local image-scale estimate, so the corridor also
+    works for vehicles at different depths in the camera image.
+    """
+    relative = pedestrian_point - vehicle_point
+    ahead = float(np.dot(relative, heading))
+    sideways = abs(float(heading[0] * relative[1] - heading[1] * relative[0]))
+    vehicle_width = min(vehicle_box[2] - vehicle_box[0],
+                        vehicle_box[3] - vehicle_box[1])
+    pedestrian_width = pedestrian_box[2] - pedestrian_box[0]
+    clearance = 0.7 * vehicle_width + 0.5 * pedestrian_width
+    return -0.25 * vehicle_width <= ahead <= 3.0 * vehicle_width and sideways <= clearance
+
+
 def evaluate_failure_to_yield_spatial(detections, scene, crossing_states, t_sec):
-    """Return the vehicles in a crossing traversal with a pedestrian present.
+    """Return crossing vehicles whose travel corridor contains a pedestrian.
 
     ``crossing_states`` persists across frames and stores the traversal start
     until the vehicle leaves the crosswalk.
@@ -59,6 +77,8 @@ def evaluate_failure_to_yield_spatial(detections, scene, crossing_states, t_sec)
     for _, crosswalk_mask in crosswalk_membership:
         in_crosswalk |= crosswalk_mask
     tracker_ids = _tracker_ids(detections)
+    foot_points = _bottom_centers(detections)
+    boxes = np.asarray(detections.xyxy, dtype=float)
     visible_vehicle_ids = set(tracker_ids[vehicle_mask])
 
     for tracker_id in list(crossing_states):
@@ -69,23 +89,47 @@ def evaluate_failure_to_yield_spatial(detections, scene, crossing_states, t_sec)
         if not vehicle_mask[index]:
             continue
 
+        point = foot_points[index]
+        state = crossing_states.setdefault(tracker_id, {
+            "start_sec": None, "pedestrian_present": False,
+            "last_point": point, "heading": None, "was_in_crosswalk": False,
+        })
+        displacement = point - state["last_point"]
+        vehicle_scale = min(boxes[index, 2] - boxes[index, 0],
+                            boxes[index, 3] - boxes[index, 1])
+        distance = float(np.linalg.norm(displacement))
+        if distance >= max(MIN_HEADING_MOVEMENT_PX, 0.05 * vehicle_scale):
+            direction = displacement / distance
+            previous = state["heading"]
+            if previous is not None:
+                direction = 0.25 * previous + 0.75 * direction
+                direction /= np.linalg.norm(direction)
+            state["heading"] = direction
+        state["last_point"] = point
+
         vehicle_crosswalks = {
             name for name, crosswalk_mask in crosswalk_membership if crosswalk_mask[index]
         }
-        if in_crosswalk[index] and tracker_id not in crossing_states:
-            crossing_states[tracker_id] = {
-                "start_sec": float(t_sec),
-                "pedestrian_present": False,
-            }
-
-        state = crossing_states.get(tracker_id)
-        if state is None:
+        if not in_crosswalk[index]:
+            state["was_in_crosswalk"] = False
             continue
+        if not state["was_in_crosswalk"]:
+            state["start_sec"] = float(t_sec)
+            state["pedestrian_present"] = False
+        state["was_in_crosswalk"] = True
 
-        pedestrian_present = any(
-            bool(np.any(pedestrian_mask & crosswalk_mask))
+        pedestrian_indices = {
+            pedestrian_index
             for name, crosswalk_mask in crosswalk_membership
             if name in vehicle_crosswalks
+            for pedestrian_index in np.flatnonzero(pedestrian_mask & crosswalk_mask)
+        }
+        pedestrian_present = state["heading"] is not None and any(
+            _pedestrian_in_vehicle_path(
+                boxes[index], point, state["heading"],
+                boxes[pedestrian_index], foot_points[pedestrian_index],
+            )
+            for pedestrian_index in pedestrian_indices
         )
         if pedestrian_present:
             state["pedestrian_present"] = True
@@ -101,9 +145,11 @@ def _close_finished_crossings(crossing_states, current_vehicle_ids, t_sec):
     for tracker_id, state in list(crossing_states.items()):
         if tracker_id in current_vehicle_ids:
             continue
-        crossing_states.pop(tracker_id)
-        if state["pedestrian_present"] and t_sec > state["start_sec"]:
+        if state["start_sec"] is not None and state["pedestrian_present"] and t_sec > state["start_sec"]:
             events.append([round(state["start_sec"], 2), round(t_sec, 2), "failure_to_yield"])
+        state["start_sec"] = None
+        state["pedestrian_present"] = False
+        state["was_in_crosswalk"] = False
     return events
 
 

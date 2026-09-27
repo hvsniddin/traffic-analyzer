@@ -6,6 +6,12 @@ from ultralytics import YOLO
 import argparse
 import json
 
+
+# Scene coordinates are image pixels, so use a person's apparent height as a
+# perspective-aware estimate of the pixel span of 50 cm at their location.
+CROSSWALK_CLEARANCE_M = 0.25
+REFERENCE_PERSON_HEIGHT_M = 1.8
+
 try:
     from classes import PERSON
     from utils import close_finished_events, start_active_events
@@ -46,17 +52,29 @@ def annotate_frame(frame, person_detections, jaywalker_mask, safe_mask, annotato
 
 
 def evaluate_jaywalking_spatial(person_detections, scene) -> tuple[np.ndarray, np.ndarray]:
-    """Returns boolean masks for jaywalkers and safe pedestrians."""
+    """Return masks using each person's bottom-center foot position."""
     if len(person_detections) == 0:
-        return np.array([]), np.array([])
+        return np.array([], dtype=bool), np.array([], dtype=bool)
 
     # In carriageway
     in_road = scene.road_zone.trigger(person_detections) if scene.road_zone else np.zeros(len(person_detections), dtype=bool)
 
-    # In any safe zone[cite: 2]
+    # In a crosswalk, or within an estimated CROSSWALK_CLEARANCE_M outside its boundary.
     in_safe_zone = np.zeros(len(person_detections), dtype=bool)
+    boxes = person_detections.xyxy
+    foot_points = np.column_stack((np.ceil((boxes[:, 0] + boxes[:, 2]) / 2), np.ceil(boxes[:, 3])))
+    clearance_px = np.maximum(boxes[:, 3] - boxes[:, 1], 0) * (
+        CROSSWALK_CLEARANCE_M / REFERENCE_PERSON_HEIGHT_M
+    )
     for cw in scene.crosswalks.values():
         in_safe_zone |= cw.trigger(person_detections)
+        polygon = np.asarray(cw.polygon, dtype=np.float32)
+        for index in np.flatnonzero(in_road & ~in_safe_zone):
+            signed_distance = cv2.pointPolygonTest(
+                polygon, tuple(map(float, foot_points[index])), True
+            )
+            if signed_distance >= -clearance_px[index]:
+                in_safe_zone[index] = True
     for isl in scene.islands.values():
         in_safe_zone |= isl.trigger(person_detections)
     for wz in scene.waiting_zones.values():

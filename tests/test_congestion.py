@@ -31,9 +31,11 @@ class CongestionTests(unittest.TestCase):
         )
 
     def detections(self, left_x=20, right_x=70, include_right=True):
-        boxes = [[left_x - 5, 40, left_x + 5, 60]]
+        boxes = [[left_x - 3, y - 10, left_x + 3, y]
+                 for y in (20, 35, 50, 65, 80)]
         if include_right:
-            boxes.append([right_x - 5, 40, right_x + 5, 60])
+            boxes.extend([[right_x - 3, y - 10, right_x + 3, y]
+                          for y in (20, 35, 50, 65, 80)])
         return SimpleNamespace(
             tracker_id=np.arange(1, len(boxes) + 1),
             class_id=np.full(len(boxes), 2),
@@ -63,6 +65,85 @@ class CongestionTests(unittest.TestCase):
             )
         self.assertFalse(congested)
 
+    def test_each_lane_in_direction_group_needs_five_vehicles(self):
+        self.scene.intersections = {}
+        self.scene.road_zone = None
+        history = {}
+        full = self.detections()
+        keep = np.array([0, 1, 2, 3, 5, 6, 7, 8, 9])
+        detections = SimpleNamespace(
+            tracker_id=full.tracker_id[keep],
+            class_id=full.class_id[keep],
+            xyxy=full.xyxy[keep],
+        )
+        for t in (0.0, 0.5, 1.0):
+            congested, _, zones = evaluate_congestion_spatial(
+                detections, self.scene, history, t
+            )
+        self.assertFalse(congested)
+        self.assertFalse(zones)
+
+    def test_lane_2_uses_same_five_vehicle_minimum_as_other_lanes(self):
+        self.scene.lanes = {"lane_2": self.scene.lanes["left"]}
+        self.scene.lane_directions = {"lane_2": np.array([0.0, 1.0])}
+        self.scene.intersections = {}
+        history = {}
+
+        def detections(car_count):
+            boxes = [[17, 10 + i * 10, 23, 20 + i * 10]
+                     for i in range(car_count + 1)]
+            return SimpleNamespace(
+                tracker_id=np.arange(1, len(boxes) + 1),
+                class_id=np.array([1] + [2] * car_count),
+                xyxy=np.asarray(boxes, dtype=float),
+            )
+
+        for t in (0.0, 0.5, 1.0):
+            congested, _, zones = evaluate_congestion_spatial(
+                detections(3), self.scene, history, t
+            )
+        self.assertFalse(congested)
+        self.assertNotIn(("lane", "lane_2"), zones)
+
+        for t in (1.5, 2.0, 2.5):
+            congested, _, zones = evaluate_congestion_spatial(
+                detections(4), self.scene, history, t
+            )
+        self.assertTrue(congested)
+        self.assertIn(("lane", "lane_2"), zones)
+
+    def test_five_spread_out_slow_vehicles_are_not_a_lane_queue(self):
+        self.scene.lanes = {"lane_2": self.scene.lanes["left"]}
+        self.scene.lane_directions = {"lane_2": np.array([0.0, 1.0])}
+        self.scene.intersections = {}
+        boxes = np.asarray([[17, y - 5, 23, y] for y in (10, 28, 46, 64, 82)], dtype=float)
+        detections = SimpleNamespace(
+            tracker_id=np.arange(1, 6), class_id=np.full(5, 2), xyxy=boxes
+        )
+        history = {}
+        for t in (0.0, 0.5, 1.0):
+            congested, _, zones = evaluate_congestion_spatial(
+                detections, self.scene, history, t
+            )
+        self.assertFalse(congested)
+        self.assertNotIn(("lane", "lane_2"), zones)
+
+    def test_side_by_side_slow_vehicles_are_not_a_lane_queue(self):
+        self.scene.lanes = {"lane_2": self.scene.lanes["left"]}
+        self.scene.lane_directions = {"lane_2": np.array([0.0, 1.0])}
+        self.scene.intersections = {}
+        boxes = np.asarray([[x - 3, 40, x + 3, 50] for x in (5, 14, 23, 32, 41)], dtype=float)
+        detections = SimpleNamespace(
+            tracker_id=np.arange(1, 6), class_id=np.full(5, 2), xyxy=boxes
+        )
+        history = {}
+        for t in (0.0, 0.5, 1.0):
+            congested, _, zones = evaluate_congestion_spatial(
+                detections, self.scene, history, t
+            )
+        self.assertFalse(congested)
+        self.assertNotIn(("lane", "lane_2"), zones)
+
     def test_event_starts_at_queue_stop_and_ends_when_it_clears(self):
         state = {"candidate_since": None, "active_start": None, "clear_since": None}
         events = []
@@ -75,10 +156,10 @@ class CongestionTests(unittest.TestCase):
         self.scene.lane_directions = {}
         self.scene.intersections = {}
         boxes = np.array([[x - 3, y - 10, x + 3, y] for x, y in
-                          ((10, 25), (25, 35), (40, 45), (55, 55), (70, 65), (85, 75))],
+                          ((10, 25), (30, 35), (50, 45), (70, 55), (90, 65))],
                          dtype=float)
         detections = SimpleNamespace(
-            tracker_id=np.arange(1, 7), class_id=np.full(6, 2), xyxy=boxes
+            tracker_id=np.arange(1, 6), class_id=np.full(5, 2), xyxy=boxes
         )
         history = {}
         for t in (0.0, 0.5, 1.0):
@@ -87,12 +168,29 @@ class CongestionTests(unittest.TestCase):
             )
         self.assertTrue(congested)
 
+    def test_broad_road_spread_does_not_bypass_queue_check(self):
+        self.scene.lanes = {}
+        self.scene.lane_directions = {}
+        self.scene.intersections = {}
+        boxes = np.array([[x - 3, y - 4, x + 3, y] for x, y in
+                          ((10, 25), (30, 35), (50, 45), (70, 55), (90, 65))],
+                         dtype=float)
+        detections = SimpleNamespace(
+            tracker_id=np.arange(1, 6), class_id=np.full(5, 2), xyxy=boxes
+        )
+        history = {}
+        for t in (0.0, 0.5, 1.0):
+            congested, _, _ = evaluate_congestion_spatial(
+                detections, self.scene, history, t
+            )
+        self.assertFalse(congested)
+
     def test_intersection_congestion_without_lanes(self):
         self.scene.lanes = {}
         self.scene.lane_directions = {}
-        boxes = np.array([[x - 3, 40, x + 3, 60] for x in (20, 50, 80)], dtype=float)
+        boxes = np.array([[x - 3, 40, x + 3, 60] for x in (20, 35, 50, 65, 80)], dtype=float)
         detections = SimpleNamespace(
-            tracker_id=np.arange(1, 4), class_id=np.full(3, 2), xyxy=boxes
+            tracker_id=np.arange(1, 6), class_id=np.full(5, 2), xyxy=boxes
         )
         history = {}
         for t in (0.0, 0.5, 1.0):

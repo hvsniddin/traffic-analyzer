@@ -20,15 +20,16 @@ except ImportError:
 VEHICLE_CLASSES = {BUS, CAR, MOTORCYCLE, TRUCK}
 SPEED_WINDOW_SEC = 0.8
 MAX_SPEED_BOX_HEIGHTS_PER_SEC = 0.6
-MIN_VEHICLES = 2
+MIN_VEHICLES = 5
 SLOW_FRACTION = 0.75
 CONFIRM_SEC = 2.0
 CLEAR_GRACE_SEC = 1.0
-ROAD_QUEUE_MIN_VEHICLES = 6
 ROAD_QUEUE_SLOW_FRACTION = 0.65
 ROAD_QUEUE_MIN_WIDTH_FRACTION = 0.25
 ROAD_QUEUE_MIN_HEIGHT_FRACTION = 0.12
-INTERSECTION_MIN_VEHICLES = 3
+QUEUE_MIN_GAP_BOX_HEIGHTS = 0.35
+QUEUE_MAX_GAP_BOX_HEIGHTS = 2.5
+QUEUE_MAX_LATERAL_BOX_WIDTHS = 1.25
 
 
 def _direction_groups(scene):
@@ -44,6 +45,46 @@ def _direction_groups(scene):
     return [group["lanes"] for group in groups]
 
 
+def _has_vehicle_queue(members, direction, vehicle_geometry):
+    """Find five slow vehicles in a close, longitudinally ordered chain."""
+    if len(members) < MIN_VEHICLES:
+        return False
+    direction = np.array(direction, dtype=float)
+    norm = np.linalg.norm(direction)
+    if norm == 0:
+        return False
+    direction /= norm
+    normal = np.array([-direction[1], direction[0]])
+    ordered = sorted(members, key=lambda key: np.dot(vehicle_geometry[key][0], direction))
+    chain_lengths = [1] * len(ordered)
+    for later in range(len(ordered)):
+        point, height, width = vehicle_geometry[ordered[later]]
+        for earlier in range(later):
+            previous_point, previous_height, previous_width = vehicle_geometry[ordered[earlier]]
+            delta = point - previous_point
+            longitudinal = float(np.dot(delta, direction))
+            lateral = abs(float(np.dot(delta, normal)))
+            mean_height = (height + previous_height) / 2.0
+            mean_width = (width + previous_width) / 2.0
+            if (QUEUE_MIN_GAP_BOX_HEIGHTS * mean_height <= longitudinal
+                    <= QUEUE_MAX_GAP_BOX_HEIGHTS * mean_height
+                    and lateral <= QUEUE_MAX_LATERAL_BOX_WIDTHS * mean_width):
+                chain_lengths[later] = max(chain_lengths[later], chain_lengths[earlier] + 1)
+        if chain_lengths[later] >= MIN_VEHICLES:
+            return True
+    return False
+
+
+def _road_has_vehicle_queue(members, scene, vehicle_geometry):
+    directions = list(scene.lane_directions.values())
+    if not directions:
+        points = np.asarray([vehicle_geometry[key][0] for key in members])
+        _, _, axes = np.linalg.svd(points - points.mean(axis=0), full_matrices=False)
+        directions = [axes[0]]
+    return any(_has_vehicle_queue(members, direction, vehicle_geometry)
+               for direction in directions)
+
+
 def evaluate_congestion_spatial(detections, scene, track_history, t_sec):
     """Return congestion status, slow track IDs, and affected scene zones.
 
@@ -55,6 +96,7 @@ def evaluate_congestion_spatial(detections, scene, track_history, t_sec):
     intersection_vehicles = {name: set() for name in scene.intersections}
     slow_ids = set()
     road_vehicles = {}
+    vehicle_geometry = {}
     congested_zones = set()
     visible_ids = set()
     ids = getattr(detections, "tracker_id", None)
@@ -66,7 +108,9 @@ def evaluate_congestion_spatial(detections, scene, track_history, t_sec):
             visible_ids.add(key)
             x1, y1, x2, y2 = map(float, detections.xyxy[index])
             height = max(y2 - y1, 1.0)
+            width = max(x2 - x1, 1.0)
             point = np.array([(x1 + x2) / 2.0, y2], dtype=float)
+            vehicle_geometry[key] = (point, height, width)
             history = track_history.setdefault(key, deque())
             history.append((t_sec, point, height))
             while len(history) > 1 and t_sec - history[1][0] >= SPEED_WINDOW_SEC:
@@ -97,17 +141,18 @@ def evaluate_congestion_spatial(detections, scene, track_history, t_sec):
         track_history.pop(key)
 
     for name, members in intersection_vehicles.items():
-        if len(members) >= INTERSECTION_MIN_VEHICLES and (
+        if len(members) >= MIN_VEHICLES and (
             len(members & slow_ids) / len(members) >= SLOW_FRACTION
         ):
             congested_zones.add(("intersection", name))
 
     for names in _direction_groups(scene):
-        if not names or len(set().union(*(lane_vehicles[name] for name in names))) < MIN_VEHICLES:
-            continue
-        if all(
-            lane_vehicles[name]
+        if names and all(
+            len(lane_vehicles[name]) >= MIN_VEHICLES
             and len(lane_vehicles[name] & slow_ids) / len(lane_vehicles[name]) >= SLOW_FRACTION
+            and _has_vehicle_queue(
+                lane_vehicles[name] & slow_ids, scene.lane_directions[name], vehicle_geometry
+            )
             for name in names
         ):
             congested_zones.update(("lane", name) for name in names)
@@ -116,25 +161,33 @@ def evaluate_congestion_spatial(detections, scene, track_history, t_sec):
     # extend beyond them, so also detect a broad, mostly stationary road queue.
     road_slow_ids = set(road_vehicles) & slow_ids
     broad_queue = False
-    if len(road_slow_ids) >= ROAD_QUEUE_MIN_VEHICLES and (
+    if len(road_slow_ids) >= MIN_VEHICLES and (
         len(road_slow_ids) / len(road_vehicles) >= ROAD_QUEUE_SLOW_FRACTION
-    ):
+    ) and _road_has_vehicle_queue(road_slow_ids, scene, vehicle_geometry):
         points = np.asarray([road_vehicles[key] for key in road_slow_ids])
         span = np.ptp(points, axis=0)
         if (span[0] >= ROAD_QUEUE_MIN_WIDTH_FRACTION * scene.frame_width
                 and span[1] >= ROAD_QUEUE_MIN_HEIGHT_FRACTION * scene.frame_height):
             broad_queue = True
             for name, members in lane_vehicles.items():
-                if len(members) >= MIN_VEHICLES and (
+                if name in scene.lane_directions and len(members) >= MIN_VEHICLES and (
                     len(members & slow_ids) / len(members) >= SLOW_FRACTION
+                ) and _has_vehicle_queue(
+                    members & slow_ids, scene.lane_directions[name], vehicle_geometry
                 ):
                     congested_zones.add(("lane", name))
             if not congested_zones:
                 membership = {
                     **{("lane", name): len(members & slow_ids)
-                       for name, members in lane_vehicles.items()},
+                       for name, members in lane_vehicles.items()
+                       if len(members) >= MIN_VEHICLES
+                       and name in scene.lane_directions
+                       and _has_vehicle_queue(
+                           members & slow_ids, scene.lane_directions[name], vehicle_geometry
+                       )},
                     **{("intersection", name): len(members & slow_ids)
-                       for name, members in intersection_vehicles.items()},
+                       for name, members in intersection_vehicles.items()
+                       if len(members) >= MIN_VEHICLES},
                 }
                 if membership and max(membership.values()) > 0:
                     congested_zones.add(max(membership, key=membership.get))
@@ -227,8 +280,8 @@ def detect_congestion_events(
         annotation_scene = scene
         out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (width, height))
         annotators = {
-            "box": sv.BoxAnnotator(color=sv.Color.RED, thickness=3),
-            "label": sv.LabelAnnotator(color=sv.Color.RED, text_scale=0.8, text_thickness=2),
+            "box": sv.BoxAnnotator(color=sv.Color.RED, thickness=1),
+            "label": sv.LabelAnnotator(color=sv.Color.RED, text_scale=0.8, text_thickness=1),
         }
 
     track_history = {}

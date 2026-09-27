@@ -16,50 +16,8 @@ except ImportError:
     from detections.utils import close_finished_events, start_active_events
 
 
-VEHICLE_CLASSES = {CAR, BUS, TRUCK, MOTORCYCLE}
 LINE_TOLERANCE_PX = 30.0
 STOP_LINE_TIMEOUT_SEC = 1.0
-
-
-def _line_endpoints(line):
-    vector = getattr(line, "vector", line)
-    start = getattr(vector, "start", None)
-    end = getattr(vector, "end", None)
-    if start is None or end is None:
-        return None
-
-    def point_xy(point):
-        if hasattr(point, "x") and hasattr(point, "y"):
-            return np.asarray([float(point.x), float(point.y)])
-        if len(point) >= 2:
-            return np.asarray([float(point[0]), float(point[1])])
-        return None
-
-    start_xy = point_xy(start)
-    end_xy = point_xy(end)
-    if start_xy is None or end_xy is None:
-        return None
-    return start_xy, end_xy
-
-
-def _bottom_centers(detections):
-    boxes = np.asarray(detections.xyxy, dtype=float)
-    return np.column_stack(((boxes[:, 0] + boxes[:, 2]) / 2.0, boxes[:, 3]))
-
-
-def _tracker_ids(detections):
-    ids = getattr(detections, "tracker_id", None)
-    return np.arange(len(detections)) if ids is None else np.asarray(ids)
-
-
-def _distance_to_segment(point, start, end):
-    segment = end - start
-    length_squared = float(np.dot(segment, segment))
-    if length_squared == 0:
-        return float(np.linalg.norm(point - start))
-    projection = np.clip(np.dot(point - start, segment) / length_squared, 0.0, 1.0)
-    closest = start + projection * segment
-    return float(np.linalg.norm(point - closest))
 
 
 def evaluate_stop_line_spatial(
@@ -70,55 +28,15 @@ def evaluate_stop_line_spatial(
     tolerance_px=LINE_TOLERANCE_PX,
     timeout_sec=STOP_LINE_TIMEOUT_SEC,
 ):
-    """Return vehicles resting on a stop line while the signal is red."""
-    event_mask = np.zeros(len(detections), dtype=bool)
-    class_ids = np.asarray(getattr(detections, "class_id", np.full(len(detections), -1)))
-
-    if np.any(class_ids == GREENLIGHT):
-        state_history["signal_is_red"] = False
-    elif np.any(class_ids == REDLIGHT):
-        state_history["signal_is_red"] = True
-
-    on_line_since = state_history.setdefault("on_line_since", {})
-    if not state_history.get("signal_is_red", False) or len(detections) == 0:
-        on_line_since.clear()
-        return event_mask, ~event_mask
-
-    vehicle_mask = np.isin(class_ids, list(VEHICLE_CLASSES))
-    centers = _bottom_centers(detections)
-    tracker_ids = _tracker_ids(detections)
-    lines = [
-        endpoints
-        for line in getattr(scene, "stop_lines", {}).values()
-        if (endpoints := _line_endpoints(line)) is not None
-    ]
-
-    if not lines:
-        return event_mask, ~event_mask
-
-    visible_vehicle_ids = set()
-    for index, (tracker_id, center) in enumerate(zip(tracker_ids, centers)):
-        if not vehicle_mask[index]:
-            continue
-
-        tracker_key = int(tracker_id)
-        visible_vehicle_ids.add(tracker_key)
-        is_on_line = any(
-            _distance_to_segment(center, start, end) <= tolerance_px
-            for start, end in lines
-        )
-        if not is_on_line:
-            on_line_since.pop(tracker_key, None)
-            continue
-
-        if tracker_key not in on_line_since:
-            on_line_since[tracker_key] = t_sec
-        event_mask[index] = t_sec - on_line_since[tracker_key] >= timeout_sec
-
-    for tracker_key in set(on_line_since) - visible_vehicle_ids:
-        on_line_since.pop(tracker_key, None)
-
-    return event_mask, ~event_mask
+    """Return vehicles stationary on a stop line during a red phase."""
+    try:
+        from traffic_light_events import evaluate_traffic_light_events
+    except ImportError:
+        from detections.traffic_light_events import evaluate_traffic_light_events
+    _, mask = evaluate_traffic_light_events(
+        detections, scene, state_history, t_sec, tolerance_px=tolerance_px
+    )
+    return mask, ~mask
 
 
 def annotate_frame(frame, detections, event_mask, annotators, scene):
@@ -207,6 +125,12 @@ def detect_stop_line_events(
                 current_ids = set(detections.tracker_id[event_mask])
 
             start_active_events(active_events, current_ids, t_sec)
+            starts = state_history.get("event_starts", {})
+            for tracker_id in current_ids:
+                active_events[tracker_id] = min(
+                    active_events[tracker_id],
+                    starts.get(("stop_line", int(tracker_id)), t_sec),
+                )
             all_events.extend(close_finished_events(
                 active_events, current_ids, t_sec, "stop_line", min_duration=min_duration
             ))

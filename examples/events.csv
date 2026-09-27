@@ -1,0 +1,85 @@
+video,start_sec,end_sec,label,notes
+C3896,0,3,failure_to_yield,white cobalt during right to the parking space (of anor bank)
+C3896,14,21,failure_to_yield,2 white cobalts and lacetti driving thru even though not all peds finished walking
+C3896,15,21,jaywalking,girl walking on a crosswalk stepped out of closer to the end of the crossing
+C3896,43,46,jaywalking,noon delivery guy with a scooter - entering crosswalk
+C3896,49,54,illegal_turn,black suv doing left turn in the middle of crossroad instead of doing from left turning lane
+C3896,53,55,failure_to_yield,same black suv guy..
+C3896,64,111,stop_line,white lacetti that stopped (after redlight)
+C3896,70,73,solid_line,white cobalt: from middle lane to lefter one
+C3896,93,98,jaywalking,ped man in white shirt jaywalked at the end (from anor bank to kfc dir)
+C3896,91,104,congestion,
+C3896,108,112,illegal_turn,white cobalt doing right turn (to hotel line) from wrong lane
+C3896,104,154,jaywalking,passenger of lacetti walking out of the car near the island at the bus stop
+C3896,113,116,jaywalking,guy crossing the road slighlt outside of crosswalk zone (wiut -> kfc)
+C3896,118,129,jaywalking,same guy bunch of others
+C3896,64,112,failure_to_yield,(lloooong time)
+C3896,135,165,failure_to_yield,starting from black suv and then goes on
+C3896,135,165,failure_to_yield,
+C3896,141,172,jaywalking,bunch of cases
+C3896,190,193,jaywalking,in the bottom left corner of the camera view
+C3896,220,221,failure_to_yield,starting from matiz and goes on
+C3896,217,226,jaywalking,
+C3896,229,258,jaywalking,
+C3896,284,287,illegal_turn,white spark left turn in the middle of crossroad instead of doing from left turning lane
+C3896,286,288,failure_to_yield,same white spark
+C3896,291,328,solid_line_crossing,white cobalt on a crosswalk
+C3896,297,320,failure_to_yield,white cobalt on a crosswalk
+C3897,0,20,stop_line,black lacetti
+C3897,0,22,jaywalking,
+C3897,37,75,jaywalking,
+C3897,76,92,jaywalking,
+C3897,91,95,illegal_u_turn,white lacetti in the bottom left
+C3897,113,122,jaywalking,guys going from wiut to kfc side
+C3897,126,249,jaywalking,guy going from bus stop downward to the crosswalk... and others
+C3897,128,175,solid_line_crossing,black yuan up lane switching
+C3897,131,139,failure_to_yield,starting from grey yuan up
+C3897,157,162,failure_to_yield,grey byd and then other cars (? - should other cars also be considered law breaking?)
+C3897,254,257,jaywalking,
+C3897,261,269,jaywalking,
+C3897,273,278,jaywalking,
+C3897,289,290,failure_to_yield,black cobalt
+C3897,291,317,jaywalking,
+C3897,305,309,failure_to_yield,white nexia r3 and others
+C3897,311,312,failure_to_yield,grey byd
+C3897,316,317,failure_to_yield,black suv
+C3902,3,4,jaywalking,(? - maybe not, man just stepped on crosswalk from a lil sideways)
+C3902,6,15,jaywalking,
+C3902,12,13,failure_to_yield,black byd
+C3902,19,38,jaywalking,
+C3902,23,27,failure_to_yield,starting from light grey byd and then black lacetti doing illegal u turn (bottom left)
+C3902,24,27,illegal_u_turn,black lacetti in the bottom left
+C3902,43,47,jaywalking,
+C3902,48,56,jaywalking,
+C3902,53,55,failure_to_yield,black bmw doing a left turn
+C3902,60,199,jaywalking,
+C3902,63,64,solid_line_crossing,black sedan shifting lanes
+C3902,88,96,failure_to_yield,white byd
+C3902,132,134,failure_to_yield,white cobalt doing a left turn (though peds were somewhat far but still on the crosswalk)
+C3902,155,156,red_light,black suv
+C3902,171,172,failure_to_yield,white lacetti
+C3902,174,175,failure_to_yield,black hongqi
+C3902,201,206,solid_line_crossing,2 black lacettis
+C3902,212,216,solid_line_crossing,black zeekr
+C3902,219,225,jaywalking,
+C3902,227,229,jaywalking,
+C3902,237,241,jaywalking,
+C3902,243,253,solid_line_crossing,black byd doing rear driving trying to get out of parking spot
+C3902,243,244,failure_to_yield,black sedan
+C3902,248,270,jaywalking,
+C3902,272,275,jaywalking,
+C3902,277,296,jaywalking,
+C3902,284,290,illegal_turn,black byd
+C3902,288,290,failure_to_yield,black byd
+C3902,316,317,stop_line,
+C3905,0,8,jaywalking,guy with delivery scooter
+C3905,2,17,failure_to_yield,white matiz
+C3905,11,26,jaywalking,
+C3905,19,22,failure_to_yield,spark and black suv
+C3905,33,37,near_miss,white cobalt going full speed on peds on the crosswalk
+C3905,39,40,failure_to_yield,same white cobalt
+C3905,43,45,solid_line_crossing,white matiz
+C3905,53,56,jaywalking,guy running down the bottom left
+C3905,66,116,jaywalking,
+C3905,74,118,failure_to_yield,starting from grey byd
+C3905,75,118,stop_line,
