@@ -20,7 +20,7 @@ into the static files.
 
 ## API contract the demo expects
 
-From `docs/demo_plan.md` in the parent repository:
+The backend implementation is `../api/main.py` and runs `solution.detect_events`.
 
 * `POST {API}/api/jobs`, multipart field `file` (MP4) → `202 {"job_id": "..."}`.
   Errors: any 4xx/5xx with `{"detail": "readable message"}` (FastAPI default).
@@ -46,9 +46,9 @@ ffmpeg -i ../../dataset/C3896.MP4 -an -filter_complex \
   -map "[f]" -q:v 3 /tmp/frames/C3896/%05d.jpg
 
 # 2. JSON, poster, heatmaps, detector counts (from the parent repo root)
-python traffic-analyzer/web/scripts/build_sample_data.py --videos dataset --frames /tmp/frames \
-  --labels annotations/events.csv annotations/events_codex.csv \
-  --weights weights/fixed_names.pt --predictions traffic-analyzer/predictions_samples.json
+python web/scripts/build_sample_data.py --videos /path/to/sample-videos --frames /tmp/frames \
+  --labels annotations/events.csv \
+  --weights weights/best.pt --predictions predictions_samples.json
 ```
 
 To show annotated playback, render `public/samples/<id>/annotated.mp4` with

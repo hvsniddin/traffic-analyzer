@@ -108,6 +108,7 @@ def _detect_events(
     target_rate = float(os.getenv("WIUT_INFERENCE_FPS", str(default_rate)))
     stride = max(1, round(fps / target_rate))
     sample_period = stride / fps
+    seek_samples = not torch.cuda.is_available() and frame_count > 0
 
     try:
         scene = SceneGeometry(str(root / "scene.json"), width, height, video_path=video_path)
@@ -132,19 +133,40 @@ def _detect_events(
                 if end - start >= minimum:
                     events.append([start, end, key[0]])
 
-        while True:
-            # Grabbing skipped frames avoids image decode and model inference.
-            if frame_index % stride:
-                if not capture.grab():
-                    break
+        while frame_count <= 0 or frame_index < frame_count:
+            if seek_samples:
+                # Random access avoids decoding every skipped 4K frame on CPU.
+                # It also recovers after damaged H.264 packets in C3896.
+                capture.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
+                sampled_index = frame_index
+                frame_index += stride
+                ok, frame = capture.read()
+                if not ok:
+                    continue
+            else:
+                # Sequential decoding is faster with a GPU's denser sampling.
+                if frame_index % stride:
+                    if capture.grab():
+                        frame_index += 1
+                    else:
+                        next_index = ((frame_index // stride) + 1) * stride
+                        if frame_count <= 0 or next_index >= frame_count:
+                            break
+                        capture.set(cv2.CAP_PROP_POS_FRAMES, next_index)
+                        frame_index = next_index
+                    continue
+                sampled_index = frame_index
                 frame_index += 1
-                continue
-            ok, frame = capture.read()
-            if not ok:
-                break
-            t_sec = frame_index / fps
+                ok, frame = capture.read()
+                if not ok:
+                    next_index = ((frame_index // stride) + 1) * stride
+                    if frame_count <= 0 or next_index >= frame_count:
+                        break
+                    capture.set(cv2.CAP_PROP_POS_FRAMES, next_index)
+                    frame_index = next_index
+                    continue
+            t_sec = sampled_index / fps
             last_time = t_sec
-            frame_index += 1
             result = model.track(
                 frame, persist=True, tracker="bytetrack.yaml", conf=0.3,
                 imgsz=640, verbose=False,
