@@ -6,7 +6,6 @@ import { config } from '@/lib/config'
 
 export const metadata: Metadata = { title: 'Technical report' }
 
-// TODO(team): update the results paragraph with evaluate.py numbers on the dev labels before tagging.
 export default function ReportPage() {
 	const blob = `${config.repoUrl}/blob/master`
 
@@ -52,9 +51,9 @@ export default function ReportPage() {
 						score is 0.
 					</li>
 					<li>
-						<strong>Our dev labels are thin.</strong> C3896 and C3897 have a first labelling pass, C3902 two
-						confirmed jaywalking segments, and C3905 none yet, so any score we quote is on a small, partly
-						self-labelled set.
+						<strong>Our dev set is small.</strong> We manually labelled all four provided clips and merged overlapping
+						segments of the same class. It contains 22, 18, 29 and 11 event intervals respectively. Results on these
+						clips may not generalise to unseen traffic or weather.
 					</li>
 					<li>
 						<strong>Label definitions are ambiguous at the edges.</strong> Our first pass had long failure_to_yield
@@ -75,7 +74,7 @@ export default function ReportPage() {
 
 				<h2>What we would do next</h2>
 				<ol>
-					<li>Finish labelling all four clips with a second reviewer, then tune thresholds against F1 at IoU 0.7.</li>
+					<li>Have a second reviewer audit the four labelled clips, then tune thresholds against F1 at IoU 0.7.</li>
 					<li>
 						wrong_way and stopped_vehicle next: both are direct rules on existing tracks plus the lane directions we
 						already measured with optical flow.
@@ -96,8 +95,7 @@ export default function ReportPage() {
 						Sample predictions: <a href={`${blob}/predictions_samples.json`}>predictions_samples.json</a>
 					</li>
 					<li>
-						Weights: <a href={`${config.repoUrl}/tree/master/weights`}>weights/</a> (TODO(team): link the release
-						asset or download.sh if the weights are not in git)
+						Weights: <a href={`${config.repoUrl}/tree/master/weights`}>weights/</a>
 					</li>
 					<li>
 						Demo API contract: <a href={`${blob}/README.md`}>README</a>

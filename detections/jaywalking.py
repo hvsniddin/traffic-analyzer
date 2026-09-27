@@ -9,7 +9,7 @@ import json
 
 # Scene coordinates are image pixels, so use a person's apparent height as a
 # perspective-aware estimate of the pixel span of 50 cm at their location.
-CROSSWALK_CLEARANCE_M = 0.25
+CROSSWALK_CLEARANCE_M = 0.5
 REFERENCE_PERSON_HEIGHT_M = 1.8
 
 try:

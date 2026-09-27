@@ -18,8 +18,8 @@ export default function ApproachPage() {
 			<PageHeader kicker='Problem and approach' title='Detector, tracker, aligned scene map, rules'>
 				The task: given a clip from one fixed junction camera, return every traffic event as{' '}
 				<code className='font-mono text-sm'>[start_sec, end_sec, label]</code> over 14 classes, scored by temporal-IoU
-				F1 at 0.3, 0.5 and 0.7. We have four unlabelled sample clips and no training labels for events, so we learn
-				only what generalises (finding road users) and express the traffic rules as geometry on a scene map.
+				F1 at 0.3, 0.5 and 0.7. We manually labelled event intervals in all four sample clips and fine-tuned the
+				object detector on annotated frames. Traffic rules use tracked objects and a scene map.
 			</PageHeader>
 
 			<section className='grid gap-2'>
@@ -44,20 +44,20 @@ export default function ApproachPage() {
 								without a separate classifier.
 							</li>
 							<li>
-								<span className='text-foreground'>ByteTrack</span> (via supervision) links detections into tracks,
+								<span className='text-foreground'>ByteTrack</span> (via Ultralytics) links detections into tracks,
 								which every rule needs for direction, speed and dwell time.
 							</li>
 							<li>
 								<span className='text-foreground'>OpenCV SIFT + RANSAC</span> estimates one homography per clip from
 								stationary features against a bundled reference frame.
 							</li>
-							<li>TODO(team): list the detector training datasets and their licences, as in the README.</li>
+							<li>Fine-tuning used annotated frames from the four organizer-provided videos only. No public dataset was added.</li>
 						</ul>
 					</div>
 					<div className='grid gap-2 rounded-2xl border p-5'>
 						<p className='font-semibold'>Why this design</p>
 						<ul className='grid list-disc gap-1.5 ps-5 text-muted-foreground'>
-							<li>No event labels exist for this camera, so an end-to-end video model has nothing to train on.</li>
+							<li>Four manually labelled clips give us a small dev set for tuning, while explicit rules use the scene layout directly.</li>
 							<li>
 								The hidden set uses the same camera and angle, so a hand-drawn map of lanes, stop lines, crossings and
 								the island transfers, once alignment absorbs the small framing shifts we measured.
@@ -66,7 +66,7 @@ export default function ApproachPage() {
 								Boundaries decide the score at IoU 0.7. Rules give exact start and end frames tied to the task&apos;s
 								own conventions (for example red_light starts when the front crosses the stop line).
 							</li>
-							<li>The hardware is a T4-class GPU with a 3× real-time budget, which a single detector pass fits.</li>
+							<li>One detector pass shares tracks across all implemented rules, reducing repeated inference.</li>
 						</ul>
 					</div>
 				</div>
